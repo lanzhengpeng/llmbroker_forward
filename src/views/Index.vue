@@ -10,9 +10,9 @@
         <img class="nav-icon" src="/src/assets/home/主页.svg" alt="主页" />
         <span class="nav-label">主页</span>
       </router-link>
-      <router-link to="/chat" class="nav-item work-icon">
-        <img class="nav-icon" src="/src/assets/home/作品.svg" alt="聊天" />
-        <span class="nav-label">聊天</span>
+      <router-link to="/projects" class="nav-item projects-icon">
+        <img class="nav-icon" src="/src/assets/home/作品.svg" alt="项目" />
+        <span class="nav-label">项目</span>
       </router-link>
       <a
         href="https://github.com/lanzhengpeng"
@@ -109,7 +109,7 @@ export default {
   line-height: 1;
 }
 .home-icon,
-.work-icon,
+.projects-icon,
 .github-icon {
   padding: 10px 16px;
   display: flex;
