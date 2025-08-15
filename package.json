@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:8": "vite --mode 8",
+    "dev:124": "vite --mode 124",
+    "build:8": "vite build --mode 8",
+    "build:124": "vite build --mode 124",
+    "preview:8": "vite preview --mode 8",
+    "preview:124": "vite preview --mode 124"
   },
   "dependencies": {
+    "marked": "^16.1.2",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },
