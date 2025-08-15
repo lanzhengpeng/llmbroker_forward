@@ -28,7 +28,7 @@
       >
         <strong>{{ msg.from === "user" ? "我" : "机器人" }}:</strong>
         <!-- 支持换行显示 -->
-        <span v-html="formatReply(msg.text)"></span>
+        <span v-html="formatReply(msg.text, msg.isStreaming)"></span>
       </div>
     </div>
     <div class="input-area">
@@ -71,6 +71,8 @@
 </template>
 
 <script>
+import { marked } from 'marked';
+
 export default {
   data() {
     return {
@@ -78,10 +80,11 @@ export default {
       messages: [{ from: "bot", text: "你好！欢迎使用聊天" }],
       loading: false,
       streamMode: true, // 是否使用流式响应
-      currentStreamResponse: "", // 用于存储流式响应的临时数据
       model: "GLM-4.5-Flash", // 默认模型，可修改
       abortController: null, // 终止流用
       error: null,
+      typewriterInterval: null, // 打字机定时器
+      typewriterBuffer: "", // 打字机缓冲区
     };
   },
   computed: {
@@ -95,21 +98,26 @@ export default {
       return null;
     },
     apiBase() {
-      // 支持通过 Vite 环境变量配置，例如 VITE_API_BASE=http://127.0.0.1:8000
-      return import.meta.env.VITE_API_BASE || "http://localhost:8000";
+  // 统一通过 Vite 代理转发到后端，前端只用 /api 前缀
+  // 如需直连可设置 VITE_API_BASE，否则默认 '/api'
+  return import.meta.env.VITE_API_BASE || "/api";
     },
   },
   methods: {
-    formatReply(text) {
+    formatReply(text, isStreaming) {
       if (!text) return "";
-      // 转义HTML再把换行替换成 <br>
-      const escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-      return escaped.replace(/\n/g, "<br>");
+      // If streaming, just show plain text (escaped for safety).
+      // Otherwise, parse the full text as Markdown.
+      if (isStreaming) {
+        return text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;")
+          .replace(/\n/g, "<br>");
+      }
+      return marked.parse(text);
     },
     insertNewLine(e) {
       // 默认行为已经添加换行，这里确保不触发发送
@@ -138,6 +146,10 @@ export default {
           /* ignore */
         }
       }
+      if (this.typewriterInterval) {
+        clearInterval(this.typewriterInterval);
+        this.typewriterInterval = null;
+      }
     },
     async sendMessage() {
       if (!this.trimmedInput || this.loading) return;
@@ -151,21 +163,24 @@ export default {
       const botMessageIndex = this.messages.length;
       this.messages.push({
         from: "bot",
-        text: this.streamMode ? "" : "思考中...",
+        text: "",
+        isStreaming: true, // Mark this message as currently streaming
       });
 
       try {
         if (this.streamMode) {
+          this.typewriterBuffer = "";
+          if (this.typewriterInterval) clearInterval(this.typewriterInterval);
+
           // 使用流式API
           this.abortController = new AbortController();
           const response = await fetch(`${this.apiBase}/chat/stream`, {
             method: "POST",
             headers: {
-              Accept: "application/json",
+              Accept: "text/event-stream, application/json, text/plain",
               "Content-Type": "application/json",
-              Origin: window.location.origin,
             },
-            credentials: "include",
+            // credentials: "include", // 后端无需 Cookie，避免多余头部
             body: JSON.stringify({
               model: this.model,
               message: userMessage,
@@ -174,62 +189,100 @@ export default {
           });
 
           if (!response.ok || !response.body) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errText = "";
+            try { errText = await response.text(); } catch (_) {}
+            throw new Error(`HTTP ${response.status}: ${errText || '请求失败'}`);
           }
 
-          // 创建新的 TextDecoder 用于处理流数据
+          // 启动打字机
+          this.typewriterInterval = setInterval(() => {
+            if (this.typewriterBuffer.length > 0) {
+              const char = this.typewriterBuffer.charAt(0);
+              this.typewriterBuffer = this.typewriterBuffer.slice(1);
+              this.messages[botMessageIndex].text += char;
+              this.scrollToBottom();
+            } else {
+              // 缓冲区空了，但流可能还没结束
+            }
+          }, 30); // 打字速度，单位ms
+
+          // 创建新的 TextDecoder 用于处理流数据（按行解析，兼容 JSON 行或纯文本）
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
-          this.currentStreamResponse = "";
+          let buffer = "";
 
           try {
             while (true) {
               const { value, done } = await reader.read();
               if (done) {
                 console.log("Stream complete");
+                // 处理最后残留未换行内容
+                if (buffer) {
+                  let line = buffer.trim();
+                  if (line.startsWith('data:')) line = line.slice(5).trim();
+                  if (line) {
+                    try {
+                      const data = JSON.parse(line);
+                      this.typewriterBuffer += data.reply ?? line;
+                    } catch (_) {
+                      this.typewriterBuffer += line;
+                    }
+                  }
+                }
                 break;
               }
 
               // 解码数据块并添加到响应中
-              const text = decoder.decode(value, { stream: true });
-              if (text) {
-                this.currentStreamResponse += text;
-                // 响应式更新消息
-                this.messages[botMessageIndex] = {
-                  from: "bot",
-                  text: this.currentStreamResponse,
-                };
-
-                // 滚动到底部
-                this.$nextTick(() => {
-                  const container = this.$refs.messagesContainer;
-                  if (container) {
-                    container.scrollTop = container.scrollHeight;
-                  }
-                });
+              const chunk = decoder.decode(value, { stream: true });
+              if (!chunk) continue;
+              buffer += chunk;
+              let lines = buffer.split(/\r?\n/);
+              buffer = lines.pop() ?? ""; // 保留未完整的一行
+              for (const raw of lines) {
+                let line = raw.trim();
+                if (!line) continue;
+                // 兼容 SSE: 只处理以 data: 开头的内容
+                if (line.startsWith('data:')) {
+                  line = line.slice(5).trim();
+                  if (!line) continue;
+                }
+                if (!line) continue;
+                try {
+                  const data = JSON.parse(line);
+                  this.typewriterBuffer += data.reply ?? line;
+                } catch (_) {
+                  this.typewriterBuffer += line;
+                }
               }
             }
           } catch (error) {
             if (error.name === "AbortError") {
               // 用户主动停止
-              this.messages[botMessageIndex] = {
-                from: "bot",
-                text: this.currentStreamResponse + " [已停止]",
-              };
+               this.messages[botMessageIndex].text += " [已停止]";
             } else {
               console.error("Stream processing error:", error);
               this.error = "流式读取失败: " + error.message;
-              this.messages[botMessageIndex] = {
-                from: "bot",
-                text: this.currentStreamResponse || "[读取响应出错]",
-              };
+               this.messages[botMessageIndex].text += " [读取响应出错]";
             }
           } finally {
-            this.loading = false;
+            // 等待打字机完成
+            const finalFlush = setInterval(() => {
+              if (this.typewriterBuffer.length === 0) {
+                clearInterval(this.typewriterInterval);
+                this.typewriterInterval = null;
+                clearInterval(finalFlush);
+                this.loading = false;
+                this.abortController = null;
+                // Streaming is done, mark it so it can be rendered as Markdown
+                if (this.messages[botMessageIndex]) {
+                  this.messages[botMessageIndex].isStreaming = false;
+                }
+                this.scrollToBottom();
+              }
+            }, 100);
             try {
               await reader.cancel();
             } catch (e) {}
-            this.abortController = null;
           }
         } else {
           // 使用普通API
@@ -266,13 +319,17 @@ export default {
           from: "bot",
           text: "[机器人回复出错]",
         };
+        if (this.messages[botMessageIndex]) {
+            this.messages[botMessageIndex].isStreaming = false;
+        }
         console.error("请求错误：", e);
       }
 
-      this.loading = false;
-      this.currentStreamResponse = "";
-      this.abortController = null;
-      this.scrollToBottom();
+      if (!this.streamMode) {
+          this.loading = false;
+          this.abortController = null;
+          this.scrollToBottom();
+      }
     },
   },
 };
