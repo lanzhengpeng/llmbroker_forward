@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>创建圆形图标</title>
+</head>
+
+<body>
+    <h1>创建圆形图标</h1>
+    <canvas id="canvas" width="128" height="128" style="border: 1px solid #ddd;"></canvas>
+    <br><br>
+    <input type="file" id="imageInput" accept="image/*" />
+    <br><br>
+    <button onclick="downloadRoundIcon()">下载圆形图标</button>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const imageInput = document.getElementById('imageInput');
+        let loadedImage = null;
+
+        // 设置canvas尺寸
+        const size = 128;
+        canvas.width = size;
+        canvas.height = size;
+
+        imageInput.addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    const img = new Image();
+                    img.onload = function () {
+                        loadedImage = img;
+                        drawRoundImage();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function drawRoundImage() {
+            if (!loadedImage) return;
+
+            // 清空canvas
+            ctx.clearRect(0, 0, size, size);
+
+            // 创建圆形裁剪路径
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+            ctx.clip();
+
+            // 计算图片缩放和位置
+            const scale = Math.max(size / loadedImage.width, size / loadedImage.height);
+            const scaledWidth = loadedImage.width * scale;
+            const scaledHeight = loadedImage.height * scale;
+            const x = (size - scaledWidth) / 2;
+            const y = (size - scaledHeight) / 2;
+
+            // 绘制图片
+            ctx.drawImage(loadedImage, x, y, scaledWidth, scaledHeight);
+            ctx.restore();
+        }
+
+        function downloadRoundIcon() {
+            if (!loadedImage) {
+                alert('请先选择一张图片');
+                return;
+            }
+
+            // 创建下载链接
+            canvas.toBlob(function (blob) {
+                const link = document.createElement('a');
+                link.download = '圆形头像.png';
+                link.href = URL.createObjectURL(blob);
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }, 'image/png');
+        }
+
+        // 自动加载现有的头像文件（如果可能的话）
+        window.onload = function () {
+            // 尝试加载头像文件
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function () {
+                loadedImage = img;
+                drawRoundImage();
+            };
+            img.onerror = function () {
+                console.log('无法自动加载头像，请手动选择文件');
+            };
+            img.src = './头像.jpg';
+        };
+    </script>
+</body>
+
+</html>
