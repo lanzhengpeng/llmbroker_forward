@@ -1,281 +1,288 @@
-
 <template>
-  <div class="agent-layout">
-    <!-- 左侧板块：侧边栏+提示词输入框 -->
-    <div class="left-panel">
-      <div class="sidebar" :class="{ open: sidebarOpen }">
-        <button class="toggle-btn" @click="toggleSidebar">
-          {{ sidebarOpen ? '收起工具栏' : '展开工具栏' }}
-        </button>
-        <div v-if="sidebarOpen" class="tool-manager">
-          <h3>工具管理</h3>
-          <ul>
-            <li v-for="tool in tools" :key="tool.id">
-              {{ tool.name }}
-              <button @click="removeTool(tool.id)" class="btn small">删除</button>
-            </li>
-          </ul>
-          <input v-model="newToolName" placeholder="新工具名称" />
-          <button @click="addTool" class="btn small">添加工具</button>
-        </div>
-      </div>
-      <div class="prompt-input">
-        <h2>Agent 提示词</h2>
-        <textarea v-model="prompt" placeholder="请输入Agent提示词..." class="command-input"></textarea>
-        <button @click="sendPrompt" class="btn primary">发送提示词</button>
-      </div>
+  <div class="agent-page">
+    <!-- 顶部 Banner -->
+    <AuthBanner :user="user" @toggle-auth="onToggleAuth" @go-home="goHome" />
+
+    <!-- 登录/注册面板 -->
+    <transition name="fade-slide">
+      <AuthPanel
+        v-if="showAuth"
+        :error="authError"
+        :user="user"
+        @close="closeAuth"
+        @login="onLogin"
+        @register="onRegister"
+        @logout="logout"
+      />
+    </transition>
+
+    <!-- 主体布局：左右分栏，左侧上下分栏 -->
+    <div class="agent-layout">
+      <section class="left-panel">
+        <LeftSplitPanel
+          v-model="promptText"
+          :tools="tools"
+          @add="onAddTool"
+          @fetch="onFetchTools"
+          @test="onTestTool"
+        />
+      </section>
+
+      <section class="right-panel">
+        <ChatSection :messages="messages" @send="onSendMessage" />
+      </section>
     </div>
-    <!-- 右侧板块：用户需求区 -->
-    <div class="right-panel">
-      <h2>用户需求</h2>
-      <div class="user-needs">
-        <textarea v-model="userNeed" placeholder="请输入用户需求..." class="command-input"></textarea>
-        <button @click="sendUserNeed" class="btn">提交需求</button>
-        <div v-if="userNeedResult" class="response-content">
-          <h3>需求结果：</h3>
-          <pre>{{ userNeedResult }}</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!-- 错误提示 -->
-  <div v-if="error" class="error-toast" @click="clearError">
-    <span>{{ error }}</span>
-    <button class="close-btn">×</button>
   </div>
 </template>
 
-
 <script>
+import {
+  login as apiLogin,
+  getToken,
+  clearToken,
+  agentRequest,
+} from "../api/client.js";
+import AuthBanner from "../components/AuthBanner.vue";
+import AuthPanel from "../components/AuthPanel.vue";
+import LeftSplitPanel from "../components/LeftSplitPanel.vue";
+import ChatSection from "../components/ChatSection.vue";
+
 export default {
-  name: 'Agent',
+  name: "Agent",
+  components: {
+    AuthBanner,
+    AuthPanel,
+    LeftSplitPanel,
+    ChatSection,
+  },
   data() {
     return {
-      sidebarOpen: false,
-      tools: [
-        { id: 1, name: '工具A' },
-        { id: 2, name: '工具B' }
-      ],
-      newToolName: '',
-      prompt: '',
-      userNeed: '',
-      userNeedResult: '',
-      error: null
-    }
+      // 认证
+      user: null,
+      showAuth: false,
+      authError: "",
+      // 业务数据
+      promptText: "",
+      tools: [],
+      messages: [],
+    };
+  },
+  mounted() {
+    try {
+      const raw = localStorage.getItem("agent_user");
+      if (raw) this.user = JSON.parse(raw);
+      const t = getToken();
+      if (t && !this.user) this.user = { username: "已登录用户" };
+    } catch {}
   },
   methods: {
-    toggleSidebar() {
-      this.sidebarOpen = !this.sidebarOpen
+    goHome() {
+      this.$router.push("/");
     },
-    addTool() {
-      if (!this.newToolName.trim()) {
-        this.error = '工具名称不能为空';
+    onToggleAuth() {
+      this.showAuth = !this.showAuth;
+      this.authError = "";
+    },
+    closeAuth() {
+      this.showAuth = false;
+      this.authError = "";
+    },
+    async onLogin({ username, password }) {
+      this.authError = "";
+      if (!username || !password) {
+        this.authError = "请输入用户名与密码。";
         return;
       }
-      this.tools.push({ id: Date.now(), name: this.newToolName.trim() });
-      this.newToolName = '';
+      try {
+        await apiLogin(username, password);
+        this.user = { username };
+        localStorage.setItem("agent_user", JSON.stringify(this.user));
+        this.closeAuth();
+      } catch (e) {
+        this.authError = e?.message || "登录失败";
+      }
     },
-    removeTool(id) {
-      this.tools = this.tools.filter(tool => tool.id !== id);
-    },
-    sendPrompt() {
-      if (!this.prompt.trim()) {
-        this.error = '请输入Agent提示词';
+    async onRegister({ username, password, confirm }) {
+      this.authError = "";
+      if (!username || !password || !confirm) {
+        this.authError = "请完整填写注册信息。";
         return;
       }
-      // 这里可以添加发送提示词的逻辑
-      this.error = null;
-      alert('已发送提示词：' + this.prompt);
-    },
-    sendUserNeed() {
-      if (!this.userNeed.trim()) {
-        this.error = '请输入用户需求';
+      if (password !== confirm) {
+        this.authError = "两次输入的密码不一致。";
         return;
       }
-      // 这里可以添加处理用户需求的逻辑
-      this.error = null;
-      this.userNeedResult = '已提交需求：' + this.userNeed;
+      try {
+        await apiLogin(username, password); // 暂用登录获取 token
+        this.user = { username };
+        localStorage.setItem("agent_user", JSON.stringify(this.user));
+        this.closeAuth();
+      } catch (e) {
+        this.authError = e?.message || "注册失败";
+      }
     },
-    clearError() {
-      this.error = null;
-    }
-  }
-}
+    logout() {
+      localStorage.removeItem("agent_user");
+      this.user = null;
+      this.showAuth = false;
+      clearToken();
+    },
+    // 工具：添加
+    async onAddTool({ url, openapi }) {
+      try {
+        if (!url || !openapi) {
+          alert("请填写 Base URL 与 OpenAPI JSON");
+          return;
+        }
+        let openapiJson;
+        try {
+          openapiJson = JSON.parse(openapi);
+        } catch (e) {
+          alert("OpenAPI JSON 解析失败，请粘贴有效的 JSON 文本。");
+          return;
+        }
+
+        const res = await agentRequest("/agent/register_tools", {
+          method: "POST",
+          body: { base_url: url, openapi_json: openapiJson },
+        });
+        const msg = (res && (res.message || res.detail)) || "工具注册完成";
+        alert(msg);
+      } catch (e) {
+        console.error("添加工具失败:", e);
+        // 简单提示
+        alert(e?.message || "添加工具失败");
+      }
+    },
+    // 工具：获取列表
+    async onFetchTools() {
+      try {
+        const resp = await agentRequest("/tool/list", { method: "GET" });
+        const arr = Array.isArray(resp)
+          ? resp
+          : Array.isArray(resp?.tools)
+          ? resp.tools
+          : [];
+        this.tools = arr.map((t) => ({
+          ...t,
+          testing: false,
+          testResult: undefined,
+        }));
+      } catch (e) {
+        console.error("获取工具失败:", e);
+        alert(e?.message || "获取工具失败");
+      }
+    },
+    // 工具：单独测试
+    async onTestTool(payload) {
+      // payload: { index, toolName, params }
+      const { index, toolName, params } = payload || {};
+      if (index == null || !this.tools[index]) return;
+      // 标记测试中
+      this.tools = this.tools.map((t, i) =>
+        i === index ? { ...t, testing: true, testResult: undefined } : t
+      );
+      try {
+        const body = {
+          tool_id: toolName,
+          test_params: params || {},
+        };
+        const res = await agentRequest("/tool/test", {
+          method: "POST",
+          body,
+        });
+        this.tools = this.tools.map((t, i) =>
+          i === index ? { ...t, testing: false, testResult: res } : t
+        );
+      } catch (e) {
+        this.tools = this.tools.map((t, i) =>
+          i === index
+            ? {
+                ...t,
+                testing: false,
+                testResult: { error: e?.message || "测试失败" },
+              }
+            : t
+        );
+      }
+    },
+    // 占位：聊天发送
+    onSendMessage(text) {
+      if (!text) return;
+      this.messages.push({ role: "user", text });
+    },
+  },
+};
 </script>
 
-
 <style scoped>
+/* 页面容器（包含 Banner + 主体） */
+.agent-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #121212;
+  color: #e0e0e0;
+  overflow: hidden; /* 外层不出现滚动条 */
+  position: fixed; /* 固定充满窗口，彻底不让 body 出滚动条 */
+  inset: 0;
+}
+
+/* 主体布局 */
 .agent-layout {
   display: flex;
-  min-height: 100vh;
-  background: #f3f4f6;
+  gap: 0;
+  padding: 0; /* 取消内边距 */
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 0; /* 关键：允许子项按视口弹性收缩 */
 }
-.left-panel {
-  width: 400px;
-  min-width: 320px;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #e5e7eb;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.04);
-}
-.sidebar {
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 1rem;
-  transition: width 0.3s;
-}
-.sidebar {
-  width: 60px;
-  overflow: hidden;
-}
-.sidebar.open {
-  width: 220px;
-  overflow: visible;
-}
-.toggle-btn {
-  width: 100%;
-  margin-bottom: 1rem;
-  background: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-.tool-manager {
-  margin-top: 0.5rem;
-}
-.tool-manager ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 0.5rem 0;
-}
-.tool-manager li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.25rem 0;
-}
-.prompt-input {
-  flex: 1;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-.prompt-input h2 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
-  color: #1f2937;
-}
+
+.left-panel,
 .right-panel {
-  flex: 1;
-  padding: 2rem;
+  background: #1e1e1e;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 0; /* 取消 panel 内部 padding */
+  box-sizing: border-box;
+  min-height: 0; /* 防止内容把高度撑破视口 */
+}
+
+.left-panel {
+  flex: 0 0 38%;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
-  background: #f3f4f6;
+  overflow: hidden; /* 避免父级抢滚动，由内部 pane 控制 */
 }
-.right-panel h2 {
-  margin: 0 0 1rem 0;
-  font-size: 1.25rem;
-  color: #1f2937;
-}
-.user-needs {
-  background: #fff;
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+
+.right-panel {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  overflow: hidden; /* 由内部 ChatSection 控制滚动 */
 }
-.command-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
-  resize: vertical;
-  min-height: 80px;
+
+/* 让 ChatSection 充满右侧并自行管理内部滚动 */
+.right-panel > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  background: #fff;
-  color: #374151;
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+
+/* 让 LeftSplitPanel 占满左侧可用高度 */
+.left-panel > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
-.btn.primary {
-  background: #3b82f6;
-  color: white;
-  border-color: #3b82f6;
+
+/* 过渡（用于 AuthPanel 出入场） */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease;
 }
-.btn.small {
-  padding: 0.25rem 0.75rem;
-  font-size: 0.75rem;
-}
-.response-content {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  max-height: 300px;
-  overflow-y: auto;
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
-  color: #1f2937;
-}
-.error-toast {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: #dc2626;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  cursor: pointer;
-  max-width: 400px;
-}
-.close-btn {
-  background: none;
-  border: none;
-  color: #dc2626;
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-@media (max-width: 1024px) {
-  .agent-layout {
-    flex-direction: column;
-  }
-  .left-panel {
-    width: 100%;
-    min-width: unset;
-    border-right: none;
-    border-bottom: 1px solid #e5e7eb;
-    box-shadow: none;
-  }
-  .right-panel {
-    padding: 1rem;
-  }
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>

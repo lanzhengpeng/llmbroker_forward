@@ -49,6 +49,20 @@ export default defineConfig(({ mode }) => {
             })
           },
         },
+        // 登录专用：固定走本地 8001，不影响其它接口
+        '/auth': {
+          target: 'http://127.0.0.1:8001',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/auth/, ''),
+          configure: (proxy, options) => {
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              console.log('[proxyReq][auth]', req.method, req.url, '->', options.target)
+            })
+            proxy.on('proxyRes', (proxyRes, req, res) => {
+              console.log('[proxyRes][auth]', req.method, req.url, proxyRes.statusCode)
+            })
+          },
+        },
       },
     },
   }
