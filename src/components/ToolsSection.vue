@@ -4,12 +4,17 @@
 
     <ul class="tool-top-list">
       <li class="tool-top-item">
-        <span @click.stop="showAdd = !showAdd">{{ showAdd ? '▼' : '▶' }} 添加工具</span>
+        <span @click.stop="showAdd = !showAdd"
+          >{{ showAdd ? "▼" : "▶" }} 添加工具</span
+        >
         <transition name="fade">
           <div v-if="showAdd" class="add-form">
             <div class="row">
               <label>工具 URL</label>
-              <input v-model.trim="addUrl" placeholder="例如：http://127.0.0.1:8500" />
+              <input
+                v-model.trim="addUrl"
+                placeholder="例如：http://127.0.0.1:8500"
+              />
             </div>
             <div class="row">
               <label>OpenAPI JSON</label>
@@ -29,22 +34,76 @@
       </li>
 
       <li class="tool-top-item">
-        <span @click.stop="showFetch = !showFetch">{{ showFetch ? '▼' : '▶' }} 获取工具列表</span>
+        <span @click.stop="showDelete = !showDelete"
+          >{{ showDelete ? "\u25bc" : "\u25b6" }} 删除工具</span
+        >
+        <transition name="fade">
+          <div v-if="showDelete" class="delete-area">
+            <div class="row">
+              <label>工具名</label>
+              <input
+                v-model.trim="deleteName"
+                placeholder="输入要删除的工具名"
+              />
+            </div>
+            <div class="actions">
+              <button class="btn primary" @click.stop="confirmDelete">
+                删除
+              </button>
+              <button class="btn" @click.stop="cancelDelete">取消</button>
+            </div>
+            <div
+              class="hint"
+              style="margin-top: 8px; color: #9ca3af; font-size: 13px"
+            >
+              建议先点击“从数据库加载”将数据库中的工具加载到内存，再点击“获取工具列表”确认名称正确，然后再执行删除。
+            </div>
+          </div>
+        </transition>
+      </li>
+
+      <li class="tool-top-item">
+        <span @click.stop="showFetch = !showFetch"
+          >{{ showFetch ? "▼" : "▶" }} 获取工具列表</span
+        >
         <transition name="fade">
           <div v-if="showFetch" class="fetch-area">
             <div class="fetch-actions">
-              <button class="btn" @click.stop="$emit('fetch')">点击获取工具列表</button>
-              <button class="btn" style="margin-left:8px;" @click.stop="$emit('clear')">清空所有工具</button>
+              <button class="btn" @click.stop="fetchTools">
+                点击获取工具列表
+              </button>
+              <button
+                class="btn"
+                style="margin-left: 8px"
+                @click.stop="loadFromDb"
+              >
+                从数据库加载
+              </button>
+              <button
+                class="btn"
+                style="margin-left: 8px"
+                @click.stop="clearTools"
+              >
+                清空所有工具
+              </button>
             </div>
 
             <!-- 工具列表区（现在嵌入到 li 中） -->
             <div class="section-body">
               <div class="tool-list" v-if="tools && tools.length">
-                <div v-for="(t, idx) in tools" :key="t.name || idx" class="tool-item">
+                <div
+                  v-for="(t, idx) in tools"
+                  :key="t.name || idx"
+                  class="tool-item"
+                >
                   <div class="row">
                     <button class="expander" @click.stop="toggleExpand(idx)">
-                      <span class="chevron" :class="{ open: isExpanded(idx) }">▶</span>
-                      <span class="name" :class="{ passed: !!t.testResult }">{{ t.name || "-" }}</span>
+                      <span class="chevron" :class="{ open: isExpanded(idx) }"
+                        >▶</span
+                      >
+                      <span class="name" :class="{ passed: !!t.testResult }">{{
+                        t.name || "-"
+                      }}</span>
                     </button>
                     <div class="ops">
                       <button
@@ -53,7 +112,27 @@
                         :disabled="t.testing"
                         @click.stop="openTestModal(idx, t)"
                       >
-                        {{ t.testResult ? "测试通过" : t.testing ? "测试中…" : "测试" }}
+                        {{
+                          t.testResult
+                            ? "测试通过"
+                            : t.testing
+                            ? "测试中…"
+                            : "测试"
+                        }}
+                      </button>
+                      <button
+                        class="btn"
+                        style="margin-left: 8px"
+                        :disabled="!t.testResult || t.saving"
+                        @click.stop="saveTool(idx, t.name)"
+                      >
+                        {{
+                          t.saved
+                            ? "已保存"
+                            : t.saving
+                            ? "保存中…"
+                            : "保存到 DB"
+                        }}
                       </button>
                     </div>
                   </div>
@@ -76,8 +155,12 @@
                           >
                             <span class="param-key">{{ key }}</span>
                             <span class="param-type">{{ p?.type || "-" }}</span>
-                            <span class="param-desc">{{ p?.description || "-" }}</span>
-                            <span class="param-default">默认：{{ p?.default ?? "-" }}</span>
+                            <span class="param-desc">{{
+                              p?.description || "-"
+                            }}</span>
+                            <span class="param-default"
+                              >默认：{{ p?.default ?? "-" }}</span
+                            >
                           </div>
                         </div>
                       </div>
@@ -135,7 +218,9 @@
           </div>
           <div class="modal-actions">
             <button class="btn" @click="closeTestModal">取消</button>
-            <button class="btn primary" @click="confirmRunTest">开始测试</button>
+            <button class="btn primary" @click="confirmRunTest">
+              开始测试
+            </button>
           </div>
         </div>
       </div>
@@ -159,13 +244,15 @@ export default {
       addUrl: "",
       addOpenapi: "",
       expandedIndex: null,
+      showDelete: false,
+      deleteName: "",
       // 测试弹窗
       showTestModal: false,
       testIndex: null,
       testToolName: "",
       testForm: {},
       testSchema: {},
-  };
+    };
   },
   methods: {
     prettyJson(obj) {
@@ -244,6 +331,33 @@ export default {
       this.addUrl = "";
       this.addOpenapi = "";
       this.showAdd = false;
+    },
+    fetchTools() {
+      this.$emit("fetch");
+    },
+    clearTools() {
+      this.$emit("clear");
+    },
+    saveTool(index, toolName) {
+      this.$emit("save", { index, toolName });
+    },
+    loadFromDb() {
+      this.$emit("load");
+    },
+    confirmDelete() {
+      if (!this.deleteName) {
+        alert("请输入要删除的工具名");
+        return;
+      }
+      // emit delete event with the tool name
+      this.$emit("delete", { toolName: this.deleteName });
+      // reset
+      this.deleteName = "";
+      this.showDelete = false;
+    },
+    cancelDelete() {
+      this.deleteName = "";
+      this.showDelete = false;
     },
   },
 };
@@ -495,7 +609,10 @@ export default {
 .param-row {
   display: grid;
   /* 第一列为弹性列，避免 key 被压瘦；描述与默认列保留最小值 */
-  grid-template-columns: minmax(120px, 1fr) 90px minmax(180px, 1.6fr) minmax(140px, 320px);
+  grid-template-columns: minmax(120px, 1fr) 90px minmax(180px, 1.6fr) minmax(
+      140px,
+      320px
+    );
   gap: 16px;
   align-items: center;
 }
@@ -622,7 +739,7 @@ export default {
   cursor: pointer;
   font-size: 16px;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: background 0.2s;
   position: relative;
 }
@@ -634,7 +751,8 @@ export default {
   align-items: center;
   gap: 6px;
 }
-.add-form, .fetch-area {
+.add-form,
+.fetch-area {
   margin-top: 10px;
 }
 

@@ -22,7 +22,16 @@
         <PromptSection v-model="promptText" />
       </section>
       <section class="col tools-col">
-        <ToolsSection :tools="tools" @add="onAddTool" @fetch="onFetchTools" @test="onTestTool" @clear="onClearTools" />
+        <ToolsSection
+          :tools="tools"
+          @add="onAddTool"
+          @fetch="onFetchTools"
+          @load="onLoadTools"
+          @test="onTestTool"
+          @clear="onClearTools"
+          @save="onSaveTool"
+          @delete="onDeleteTool"
+        />
       </section>
       <section class="col chat-col">
         <ChatSection :messages="messages" @send="onSendMessage" />
@@ -112,8 +121,8 @@ export default {
       }
       try {
         // 先调用注册接口
-        await agentRequest('/user/register', {
-          method: 'POST',
+        await agentRequest("/user/register", {
+          method: "POST",
           body: { username, password },
         });
         // 注册成功后自动登录以获取 token
@@ -145,7 +154,7 @@ export default {
           alert("OpenAPI JSON 解析失败，请粘贴有效的 JSON 文本。");
           return;
         }
-  const res = await agentRequest("/tool/register_tools", {
+        const res = await agentRequest("/tool/register_tools", {
           method: "POST",
           body: { base_url: url, openapi_json: openapiJson },
         });
@@ -206,22 +215,106 @@ export default {
         );
       }
     },
+    // 工具：保存到数据库（根据名字保存内存中的工具）
+    async onSaveTool({ index, toolName }) {
+      if (index == null || !this.tools[index]) return;
+      // 只允许保存测试通过的工具
+      if (!this.tools[index].testResult) {
+        alert("该工具尚未通过测试，无法保存。");
+        return;
+      }
+      // 标记保存中
+      this.tools = this.tools.map((t, i) =>
+        i === index ? { ...t, saving: true } : t
+      );
+      try {
+        const res = await agentRequest("/tool/save", {
+          method: "POST",
+          body: { tool_name: toolName },
+        });
+        // 更新为已保存
+        this.tools = this.tools.map((t, i) =>
+          i === index ? { ...t, saving: false, saved: true } : t
+        );
+        const msg = (res && (res.message || res.detail)) || "保存成功";
+        // 在页面上显示（也支持更复杂的通知组件）
+        alert(`保存工具响应: ${msg}`);
+      } catch (e) {
+        this.tools = this.tools.map((t, i) =>
+          i === index ? { ...t, saving: false } : t
+        );
+        console.error("保存工具失败:", e);
+        alert(e?.message || "保存工具失败");
+      }
+    },
+    // 工具：从数据库加载到内存后刷新列表
+    async onLoadTools() {
+      try {
+        const res = await agentRequest("/tool/load", {
+          method: "POST",
+          body: {},
+        });
+        const msg =
+          (res && (res.message || res.detail)) || JSON.stringify(res || {});
+        // 刷新工具列表
+        await this.onFetchTools();
+        alert(`加载工具响应: ${msg}`);
+      } catch (e) {
+        console.error("加载工具失败:", e);
+        alert(e?.message || "加载工具失败");
+      }
+    },
+    // 工具：按名字删除（先将数据库加载到内存并刷新列表，以确保名称一致）
+    async onDeleteTool({ toolName }) {
+      if (!toolName) return;
+      if (!confirm(`确定要删除工具 "${toolName}" 吗？此操作不可逆。`)) return;
+      try {
+        // 先请求后端将 DB 中的工具加载到内存（后端负责同步）
+        await agentRequest("/tool/load", { method: "POST", body: {} });
+        // 刷新内存列表以确认名称
+        await this.onFetchTools();
+
+        // 发起按名字删除请求（DELETE /tool/delete）
+        const delRes = await agentRequest("/tool/delete", {
+          method: "DELETE",
+          body: { tool_name: toolName },
+        });
+
+        // 重新刷新列表
+        await this.onFetchTools();
+
+        const msg =
+          (delRes && (delRes.message || delRes.detail)) ||
+          JSON.stringify(delRes || {});
+        alert(`删除工具响应: ${msg}`);
+      } catch (e) {
+        console.error("删除工具失败:", e);
+        alert(e?.message || "删除工具失败");
+      }
+    },
     // 工具：清空所有工具
     async onClearTools() {
-      if (!confirm('确定要清空所有工具吗？此操作不可逆。')) return;
+      if (!confirm("确定要清空所有工具吗？此操作不可逆。")) return;
       try {
-        const res = await agentRequest('/tool/clear_tools', { method: 'DELETE', body: {} });
+        const res = await agentRequest("/tool/clear_tools", {
+          method: "DELETE",
+          body: {},
+        });
         // 兼容后端可能返回不同结构
-        const ok = res && (res.success || res.code === 0 || /清除|已清空|ok/i.test(JSON.stringify(res)));
+        const ok =
+          res &&
+          (res.success ||
+            res.code === 0 ||
+            /清除|已清空|ok/i.test(JSON.stringify(res)));
         if (ok) {
           this.tools = [];
-          alert('已清空所有工具');
+          alert("已清空所有工具");
         } else {
-          alert((res && (res.message || res.detail)) || '清空工具返回未知结果');
+          alert((res && (res.message || res.detail)) || "清空工具返回未知结果");
         }
       } catch (e) {
-        console.error('清空工具失败:', e);
-        alert(e?.message || '清空工具失败');
+        console.error("清空工具失败:", e);
+        alert(e?.message || "清空工具失败");
       }
     },
     // 占位：聊天发送
@@ -290,7 +383,9 @@ export default {
     border-right: none;
     border-bottom: 1px solid #222;
   }
-  .prompt-col, .tools-col, .chat-col {
+  .prompt-col,
+  .tools-col,
+  .chat-col {
     max-width: none;
     min-width: 0;
     border-right: none;

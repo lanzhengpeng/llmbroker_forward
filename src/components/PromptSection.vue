@@ -9,11 +9,11 @@
         placeholder="在这里编排/编辑提示词……"
       ></textarea>
     </div>
-      <div class="section-footer">
-        <button class="confirm-btn" :disabled="loading" @click="confirmPrompt">
-          {{ loading ? '保存中…' : '确认' }}
-        </button>
-      </div>
+    <div class="section-footer">
+      <button class="confirm-btn" :disabled="loading" @click="confirmPrompt">
+        {{ loading ? "保存中…" : "确认" }}
+      </button>
+    </div>
   </section>
 </template>
 
@@ -28,16 +28,65 @@ export default {
   data() {
     return { loading: false };
   },
+  async mounted() {
+    // 页面加载时从数据库加载提示词到内存并同步到 v-model
+    try {
+      await this.loadPromptFromDb();
+    } catch (e) {
+      // 忽略加载错误，保留当前值
+      console.error("加载提示词失败", e);
+    }
+  },
   methods: {
+    async loadPromptFromDb() {
+      try {
+        const res = await agentRequest("/prompt/load_task_step_prompt", {
+          method: "POST",
+          body: {},
+        });
+        // 尝试从多种可能的字段中提取提示词文本
+        let promptText = "";
+        if (!res) promptText = "";
+        else if (typeof res === "string") promptText = res;
+        else if (res.prompt) promptText = res.prompt;
+        else if (res.task_step_prompt) promptText = res.task_step_prompt;
+        else if (res.data && res.data.prompt) promptText = res.data.prompt;
+        else if (res.result && res.result.prompt)
+          promptText = res.result.prompt;
+        else if (res.prompt_text) promptText = res.prompt_text;
+        else promptText = "";
+
+        // 如果拿到内容，更新到父组件 v-model
+        if (promptText !== undefined && promptText !== null) {
+          this.$emit("update:modelValue", String(promptText));
+        }
+        return res;
+      } catch (e) {
+        console.error("loadPromptFromDb error", e);
+        throw e;
+      }
+    },
     async confirmPrompt() {
       if (this.loading) return;
       this.loading = true;
       try {
-        const res = await agentRequest("/agent/set_task_step_prompt", {
+        // 保存到数据库（按用户要求使用 /prompt/save）
+        const saveRes = await agentRequest("/prompt/save", {
           method: "POST",
-          body: { task_step_prompt: this.modelValue },
+          body: { prompt: this.modelValue },
         });
-        alert((res && (res.message || res.detail)) || "保存成功");
+
+        const saveMsg =
+          (saveRes && (saveRes.message || saveRes.detail)) || "保存成功";
+
+        // 保存后立即从数据库加载提示词并同步到内存/界面
+        try {
+          await this.loadPromptFromDb();
+        } catch (e) {
+          console.error("保存后加载提示词失败", e);
+        }
+
+        alert(saveMsg);
       } catch (e) {
         console.error("保存提示词失败", e);
         alert(e?.message || "保存失败");
@@ -83,17 +132,18 @@ export default {
   padding: 8px 24px;
   font-size: 16px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  transition: background 0.14s ease, transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: background 0.14s ease, transform 0.12s ease, box-shadow 0.12s ease,
+    border-color 0.12s ease;
 }
 .confirm-btn:hover {
   background: #2f7ddf;
   transform: translateY(-1px);
-  box-shadow: 0 10px 30px rgba(58,139,246,0.12);
+  box-shadow: 0 10px 30px rgba(58, 139, 246, 0.12);
 }
 .confirm-btn:active {
   transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .section-body {
@@ -132,7 +182,7 @@ export default {
 .prompt-section textarea.command-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
-  border-color: rgba(255,255,255,0.02) !important;
+  border-color: rgba(255, 255, 255, 0.02) !important;
 }
 
 /* 提示词区域滚动条（纯黑系） */
