@@ -2,138 +2,145 @@
   <section class="tools-section">
     <h2>工具管理</h2>
 
-    <!-- 顶部操作按钮 -->
-    <div class="actions top">
-      <button class="btn" @click="showAdd = true">添加工具</button>
-      <button class="btn" @click="$emit('fetch')">获取工具</button>
-    </div>
-
-    <!-- 添加工具表单 -->
-    <div v-if="showAdd" class="add-form">
-      <div class="row">
-        <label>Base URL</label>
-        <input
-          v-model.trim="addUrl"
-          placeholder="例如：http://8.218.206.87:8500"
-        />
-      </div>
-      <div class="row">
-        <label>OpenAPI JSON</label>
-        <textarea
-          v-model.trim="addOpenapi"
-          placeholder="在此粘贴完整的 OpenAPI JSON 内容"
-          rows="8"
-          spellcheck="false"
-        ></textarea>
-      </div>
-      <div class="actions">
-        <button class="btn primary" @click="confirmAdd">确定</button>
-        <button class="btn" @click="cancelAdd">取消</button>
-      </div>
-    </div>
-
-    <!-- 列表滚动容器（只在内部滚动） -->
-    <div class="section-body">
-      <div class="tool-list" v-if="tools && tools.length">
-        <div v-for="(t, idx) in tools" :key="t.name || idx" class="tool-item">
-          <div class="row">
-            <button class="expander" @click.stop="toggleExpand(idx)">
-              <span class="chevron" :class="{ open: isExpanded(idx) }">▶</span>
-              <span class="name" :class="{ passed: !!t.testResult }">{{
-                t.name || "-"
-              }}</span>
-            </button>
-            <div class="ops">
-              <button
-                class="btn"
-                :class="{ success: !!t.testResult }"
-                :disabled="t.testing"
-                @click.stop="openTestModal(idx, t)"
-              >
-                {{ t.testResult ? "测试通过" : t.testing ? "测试中…" : "测试" }}
-              </button>
+    <ul class="tool-top-list">
+      <li class="tool-top-item">
+        <span @click.stop="showAdd = !showAdd">{{ showAdd ? '▼' : '▶' }} 添加工具</span>
+        <transition name="fade">
+          <div v-if="showAdd" class="add-form">
+            <div class="row">
+              <label>工具 URL</label>
+              <input v-model.trim="addUrl" placeholder="例如：http://127.0.0.1:8500" />
+            </div>
+            <div class="row">
+              <label>OpenAPI JSON</label>
+              <textarea
+                v-model.trim="addOpenapi"
+                placeholder="在此粘贴完整的 OpenAPI JSON 内容"
+                rows="8"
+                spellcheck="false"
+              ></textarea>
+            </div>
+            <div class="actions">
+              <button class="btn primary" @click.stop="confirmAdd">确定</button>
+              <button class="btn" @click.stop="cancelAdd">取消</button>
             </div>
           </div>
-          <transition name="fade">
-            <div v-if="isExpanded(idx)" class="details">
-              <div class="line">
-                <span class="k">描述：</span>
-                <span class="v">{{ t.description || "-" }}</span>
-              </div>
-              <div
-                class="line block"
-                v-if="t.parameters && Object.keys(t.parameters).length"
-              >
-                <span class="k">参数：</span>
-                <div class="params">
-                  <div
-                    v-for="(p, key) in t.parameters"
-                    :key="key"
-                    class="param-row"
-                  >
-                    <span class="param-key">{{ key }}</span>
-                    <span class="param-type">{{ p?.type || "-" }}</span>
-                    <span class="param-desc">{{ p?.description || "-" }}</span>
-                    <span class="param-default"
-                      >默认：{{ p?.default ?? "-" }}</span
-                    >
+        </transition>
+      </li>
+
+      <li class="tool-top-item">
+        <span @click.stop="showFetch = !showFetch">{{ showFetch ? '▼' : '▶' }} 获取工具列表</span>
+        <transition name="fade">
+          <div v-if="showFetch" class="fetch-area">
+            <div class="fetch-actions">
+              <button class="btn" @click.stop="$emit('fetch')">点击获取工具列表</button>
+              <button class="btn" style="margin-left:8px;" @click.stop="$emit('clear')">清空所有工具</button>
+            </div>
+
+            <!-- 工具列表区（现在嵌入到 li 中） -->
+            <div class="section-body">
+              <div class="tool-list" v-if="tools && tools.length">
+                <div v-for="(t, idx) in tools" :key="t.name || idx" class="tool-item">
+                  <div class="row">
+                    <button class="expander" @click.stop="toggleExpand(idx)">
+                      <span class="chevron" :class="{ open: isExpanded(idx) }">▶</span>
+                      <span class="name" :class="{ passed: !!t.testResult }">{{ t.name || "-" }}</span>
+                    </button>
+                    <div class="ops">
+                      <button
+                        class="btn"
+                        :class="{ success: !!t.testResult }"
+                        :disabled="t.testing"
+                        @click.stop="openTestModal(idx, t)"
+                      >
+                        {{ t.testResult ? "测试通过" : t.testing ? "测试中…" : "测试" }}
+                      </button>
+                    </div>
                   </div>
+                  <transition name="fade">
+                    <div v-if="isExpanded(idx)" class="details">
+                      <div class="line">
+                        <span class="k">描述：</span>
+                        <span class="v">{{ t.description || "-" }}</span>
+                      </div>
+                      <div
+                        class="line block"
+                        v-if="t.parameters && Object.keys(t.parameters).length"
+                      >
+                        <span class="k">参数：</span>
+                        <div class="params">
+                          <div
+                            v-for="(p, key) in t.parameters"
+                            :key="key"
+                            class="param-row"
+                          >
+                            <span class="param-key">{{ key }}</span>
+                            <span class="param-type">{{ p?.type || "-" }}</span>
+                            <span class="param-desc">{{ p?.description || "-" }}</span>
+                            <span class="param-default">默认：{{ p?.default ?? "-" }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="test-state" v-if="t.testing">正在测试…</div>
+                      <div class="test-result" v-else-if="t.testResult">
+                        <pre>{{ prettyJson(t.testResult) }}</pre>
+                      </div>
+                    </div>
+                  </transition>
                 </div>
               </div>
-              <div class="test-state" v-if="t.testing">正在测试…</div>
-              <div class="test-result" v-else-if="t.testResult">
-                <pre>{{ prettyJson(t.testResult) }}</pre>
+              <div v-else class="placeholder">
+                暂无工具，点击“获取工具”或“添加工具”。
               </div>
             </div>
-          </transition>
-        </div>
-      </div>
-      <div v-else class="placeholder">
-        暂无工具，点击“获取工具”或“添加工具”。
-      </div>
-    </div>
-  </section>
+          </div>
+        </transition>
+      </li>
+    </ul>
 
-  <!-- 测试参数弹窗（Teleport 到 body，确保居中显示且不被裁剪） -->
-  <teleport to="body">
-    <div v-if="showTestModal" class="modal-mask" @click.self="closeTestModal">
-      <div class="modal">
-        <h3>测试工具：{{ testToolName || "-" }}</h3>
-        <div v-if="testParamKeys.length" class="form-grid">
-          <div v-for="key in testParamKeys" :key="key" class="form-row">
-            <label>{{ key }}</label>
-            <input
-              v-if="fieldType(key) === 'number'"
-              type="number"
-              v-model.number="testForm[key]"
-            />
-            <select
-              v-else-if="fieldType(key) === 'boolean'"
-              v-model="testForm[key]"
-            >
-              <option :value="true">true</option>
-              <option :value="false">false</option>
-            </select>
-            <textarea
-              v-else-if="fieldType(key) === 'longtext'"
-              rows="4"
-              v-model.trim="testForm[key]"
-              spellcheck="false"
-            ></textarea>
-            <input v-else type="text" v-model.trim="testForm[key]" />
-            <small class="hint">{{ paramDesc(key) }}</small>
+    <div class="divider"></div>
+
+    <!-- 测试参数弹窗（Teleport 到 body，确保居中显示且不被裁剪） -->
+    <teleport to="body">
+      <div v-if="showTestModal" class="modal-mask" @click.self="closeTestModal">
+        <div class="modal">
+          <h3>测试工具：{{ testToolName || "-" }}</h3>
+          <div v-if="testParamKeys.length" class="form-grid">
+            <div v-for="key in testParamKeys" :key="key" class="form-row">
+              <label>{{ key }}</label>
+              <input
+                v-if="fieldType(key) === 'number'"
+                type="number"
+                v-model.number="testForm[key]"
+              />
+              <select
+                v-else-if="fieldType(key) === 'boolean'"
+                v-model="testForm[key]"
+              >
+                <option :value="true">true</option>
+                <option :value="false">false</option>
+              </select>
+              <textarea
+                v-else-if="fieldType(key) === 'longtext'"
+                rows="4"
+                v-model.trim="testForm[key]"
+                spellcheck="false"
+              ></textarea>
+              <input v-else type="text" v-model.trim="testForm[key]" />
+              <small class="hint">{{ paramDesc(key) }}</small>
+            </div>
+          </div>
+          <div v-else class="placeholder small">
+            该工具未声明参数，将直接发起测试。
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="closeTestModal">取消</button>
+            <button class="btn primary" @click="confirmRunTest">开始测试</button>
           </div>
         </div>
-        <div v-else class="placeholder small">
-          该工具未声明参数，将直接发起测试。
-        </div>
-        <div class="modal-actions">
-          <button class="btn" @click="closeTestModal">取消</button>
-          <button class="btn primary" @click="confirmRunTest">开始测试</button>
-        </div>
       </div>
-    </div>
-  </teleport>
+    </teleport>
+  </section>
 </template>
 
 <script>
@@ -148,6 +155,7 @@ export default {
   data() {
     return {
       showAdd: false,
+      showFetch: false,
       addUrl: "",
       addOpenapi: "",
       expandedIndex: null,
@@ -157,7 +165,7 @@ export default {
       testToolName: "",
       testForm: {},
       testSchema: {},
-    };
+  };
   },
   methods: {
     prettyJson(obj) {
@@ -257,13 +265,21 @@ export default {
   overflow: hidden; /* 外层不滚动，由内部 section-body 滚动 */
 }
 
-.actions {
-  margin-top: 8px;
+/* 添加工具入口区和工具列表分隔样式 */
+.add-tool-area {
   display: flex;
   gap: 8px;
-}
-.actions.top {
+  align-items: center;
   margin-bottom: 8px;
+}
+.add-tool-toggle {
+  font-weight: 600;
+}
+.divider {
+  height: 1px;
+  background: #222;
+  margin: 8px 0 12px 0;
+  border-radius: 2px;
 }
 .btn {
   border: 1px solid #2a2a2a;
@@ -280,9 +296,9 @@ export default {
   color: #eafff6;
 }
 .btn.primary {
-  background: #7c3aed;
+  background: #3a8bf6;
   color: #fff;
-  border-color: #7c3aed;
+  border-color: #3a8bf6;
 }
 .btn:hover {
   background: #343434;
@@ -315,9 +331,13 @@ export default {
   overflow: auto;
 }
 .add-form input:focus,
-.add-form textarea:focus {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+.add-form textarea:focus,
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+  outline: none;
+  border-color: inherit;
+  box-shadow: none;
 }
 .add-form input::placeholder,
 .add-form textarea::placeholder {
@@ -331,6 +351,13 @@ export default {
   overflow-y: auto;
   overflow-x: hidden;
   max-height: 100%;
+}
+
+/* 给滚动容器留出右侧空间，避免系统滚动条覆盖内容 */
+.fetch-area .section-body,
+.section-body {
+  padding-right: 12px;
+  box-sizing: border-box;
 }
 .section-body::-webkit-scrollbar {
   width: 10px;
@@ -355,6 +382,7 @@ export default {
 .tool-list {
   display: grid;
   gap: 8px;
+  width: 100%;
 }
 .tool-item {
   display: block;
@@ -362,6 +390,9 @@ export default {
   border-radius: 8px;
   padding: 10px;
   background: #1b1b1b;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden; /* 防止内部内容被推到外面 */
 }
 .tool-item .row {
   display: flex;
@@ -372,12 +403,15 @@ export default {
 .expander {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: transparent;
   border: none;
   color: #e5e7eb;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 6px; /* 略微减小横向内边距 */
+  /* 允许在 flex 行内伸缩，避免把右侧按钮挤到容器外 */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .chevron {
   display: inline-block;
@@ -389,6 +423,33 @@ export default {
 .name {
   font-weight: 600;
   color: #fff;
+  font-size: 14px; /* 缩小名称字体 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tool-item {
+  font-size: 13px; /* 整体条目字体更紧凑 */
+  padding: 12px; /* 增加内边距，留出空间 */
+}
+.tool-top-item {
+  overflow: visible; /* 保证 li 内的展开内容和按钮不会被裁剪 */
+  font-size: 14px; /* 顶部 li 字体稍小 */
+}
+.tool-item .ops {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-left: 8px; /* 确保与左侧名称分离并固定在右侧 */
+}
+.tool-item .ops .btn {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--btn-text-light);
+}
+.tool-top-item {
+  overflow: visible; /* 保证 li 内的展开内容和按钮不会被裁剪 */
 }
 .name.passed {
   color: #10b981;
@@ -399,6 +460,19 @@ export default {
   border-top: 1px dashed #2a2a2a;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+.details .line {
+  margin-bottom: 8px;
+}
+.details .line .k {
+  display: inline-block;
+  min-width: 72px;
+  color: #9ca3af;
+  font-weight: 600;
+}
+.details .line .v {
+  color: #d1d5db;
+  line-height: 1.6;
 }
 .tool-item .meta {
   font-size: 13px;
@@ -415,29 +489,49 @@ export default {
 }
 .params {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   margin-top: 6px;
 }
 .param-row {
   display: grid;
-  grid-template-columns: 160px 100px minmax(0, 1fr) auto;
-  gap: 8px;
+  /* 第一列为弹性列，避免 key 被压瘦；描述与默认列保留最小值 */
+  grid-template-columns: minmax(120px, 1fr) 90px minmax(180px, 1.6fr) minmax(140px, 320px);
+  gap: 16px;
   align-items: center;
 }
 .param-key {
   color: #e5e7eb;
-  font-weight: 600;
+  font-weight: 700;
+  display: block;
+  min-width: 0; /* 允许在 grid 中收缩 */
+  max-width: 100%;
+  /* 允许换行以防止被压瘦，同时在必要时换行显示 */
+  white-space: normal;
+  overflow: visible;
+  word-break: break-word;
 }
 .param-type {
-  color: #93c5fd;
+  color: #60a5fa;
+  font-size: 13px;
 }
 .param-desc {
   color: #d1d5db;
   word-break: break-word;
   overflow-wrap: anywhere;
+  white-space: normal; /* 允许正常换行 */
+  min-width: 140px; /* 保护描述列不被挤得过窄 */
 }
 .param-default {
   color: #cbd5e1;
+  text-align: right;
+  white-space: nowrap; /* 保持单行以避免换行导致列高度过高 */
+  overflow: hidden;
+  text-overflow: ellipsis; /* 过长以省略号显示 */
+  word-break: normal;
+  writing-mode: horizontal-tb !important; /* 禁止竖排 */
+  transform: none !important;
+  align-self: center;
+  padding-left: 8px; /* 给默认值左侧留点空隙 */
 }
 
 .test-result pre {
@@ -511,5 +605,76 @@ export default {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+/* 顶部li标签样式 */
+.tool-top-list {
+  list-style: none;
+  margin: 0 0 8px 0;
+  padding: 0;
+}
+.tool-top-item {
+  background: #23272f;
+  color: #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: background 0.2s;
+  position: relative;
+}
+.tool-top-item:hover {
+  background: #2a2a2a;
+}
+.tool-top-item > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.add-form, .fetch-area {
+  margin-top: 10px;
+}
+
+/* 展开后的 fetch-area 内部允许滚动，不会撑开外层布局 */
+.fetch-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fetch-area .section-body {
+  /* 限制高度为视口的一部分，便于在 li 内滚动 */
+  max-height: 45vh;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 确保 li 本身包含展开内容，不让内部元素浮出 */
+.tool-top-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.fetch-area {
+  width: 100%;
+  box-sizing: border-box;
+}
+.fetch-area .section-body {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 保证每一行内的元素在狭窄容器下不会突破布局 */
+.tool-item .row {
+  min-width: 0;
+  width: 100%;
+}
+.tool-item .row > * {
+  min-width: 0;
+}
+.tool-item .ops {
+  flex-shrink: 0;
 }
 </style>

@@ -1,6 +1,7 @@
 <template>
   <section class="chat-section">
     <h2>聊天区</h2>
+    <button class="clear-history-btn btn" @click="clearHistory">清空历史</button>
     <div class="messages" ref="msgBox" @scroll="onMessagesScroll">
       <div
         v-for="(m, idx) in localMessages"
@@ -8,9 +9,13 @@
         class="msg"
         :class="m.role"
       >
-        <span class="role">{{ m.role }}:</span>
-        <span class="text" v-if="m.html" v-html="m.html"></span>
-        <span class="text" v-else>{{ m.text }}</span>
+        <div class="bubble-wrap" :class="m.role">
+          <span class="role">{{ m.role === 'user' ? '我' : m.role === 'assistant' ? '机器人' : m.role }}</span>
+          <div class="bubble">
+            <span class="text" v-if="m.html" v-html="m.html"></span>
+            <span class="text" v-else>{{ m.text }}</span>
+          </div>
+        </div>
       </div>
       <button v-if="!atBottom" class="jump-bottom" @click="scrollToBottom">
         回到底部
@@ -31,12 +36,15 @@
 </template>
 
 <script>
-import { agentStream } from "../api/client.js";
+import { agentStream, agentRequest } from "../api/client.js";
 import { marked } from "marked";
 export default {
   name: "ChatSection",
   props: {
-    messages: { type: Array, default: () => [] },
+    userId: {
+      type: [String, Number],
+      default: null,
+    },
   },
   data() {
     return {
@@ -51,6 +59,8 @@ export default {
       typeAbort: false,
       typeDelay: 30, // 每字符间隔(ms)
       currentAssistantIndex: -1,
+  pendingFinal: null,
+  clearNoticeTimer: null,
       isHidden: false, // 页面可见性
       atBottom: true, // 是否贴底
     };
@@ -59,11 +69,27 @@ export default {
     this.isHidden = typeof document !== "undefined" ? document.hidden : false;
     document.addEventListener("visibilitychange", this.onVisibilityChange);
     this.$nextTick(() => this.onMessagesScroll());
+  // 页面加载时尝试拉取历史聊天记录
+  this.loadHistory();
+    // 监听复制按钮点击
+    this.$el.addEventListener('click', this.onCopyClick);
   },
   beforeUnmount() {
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    // 移除复制按钮监听
+    this.$el.removeEventListener('click', this.onCopyClick);
+    if (this.clearNoticeTimer) {
+      clearTimeout(this.clearNoticeTimer);
+      this.clearNoticeTimer = null;
+    }
   },
   watch: {
+    userId: {
+      immediate: false,
+      handler() {
+        this.loadHistory();
+      },
+    },
     messages: {
       immediate: true,
       handler(v) {
@@ -73,6 +99,59 @@ export default {
     },
   },
   methods: {
+    // 从后端加载聊天历史并映射到 localMessages
+    async loadHistory() {
+      try {
+        const res = await agentRequest('/chat_session/get_chat_history', { method: 'GET' });
+        // 支持多种后端返回格式：
+        // 1) { chat_sessions: '[{...},...]' } (字符串化的 JSON)
+        // 2) { chat_sessions: [{...}, ...] }
+        // 3) 直接返回数组
+        let sessions = null;
+        if (!res) {
+          sessions = [];
+        } else if (Array.isArray(res)) {
+          sessions = res;
+        } else if (res.chat_sessions) {
+          if (typeof res.chat_sessions === 'string') {
+            try {
+              sessions = JSON.parse(res.chat_sessions);
+            } catch {
+              sessions = [];
+            }
+          } else if (Array.isArray(res.chat_sessions)) {
+            sessions = res.chat_sessions;
+          } else {
+            sessions = [];
+          }
+        } else if (res.data && res.data.chat_sessions) {
+          const cs = res.data.chat_sessions;
+          if (typeof cs === 'string') {
+            try { sessions = JSON.parse(cs); } catch { sessions = []; }
+          } else if (Array.isArray(cs)) { sessions = cs; } else { sessions = []; }
+        } else {
+          sessions = [];
+        }
+
+        // 按时间排序（升序），然后映射为 localMessages
+        sessions = sessions.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const mapped = sessions.map((s) => {
+          const text = s.message_content ?? s.message ?? '';
+          return {
+            role: s.role ?? 'assistant',
+            text,
+            html: this.renderMarkdown(text),
+            messageId: s.message_id,
+            created_at: s.created_at,
+          };
+        });
+        this.localMessages = mapped;
+        this.$nextTick(this.scrollToBottom);
+      } catch (e) {
+        // 拉取失败时在界面显示一条系统信息（但不打断页面）
+        this.localMessages.push({ role: 'system', text: `加载历史失败: ${e?.message || e}` });
+      }
+    },
     onMessagesScroll() {
       const el = this.$refs.msgBox;
       if (!el) return;
@@ -85,10 +164,51 @@ export default {
     },
     renderMarkdown(text) {
       try {
-        const html = marked.parse(text || "", { breaks: true });
-        return this.basicSanitize(html);
+        let html = marked.parse(text || "", { breaks: true });
+        html = this.basicSanitize(html);
+        // 处理代码块，插入复制按钮
+  html = html.replace(/<pre><code( class="[^"]*")?>([\s\S]*?)<\/code><\/pre>/g, (match, cls, code) => { 
+          // 解码 html 实体
+          const decoded = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+          // 生成唯一 id
+          const id = 'code-' + Math.random().toString(36).slice(2, 10);
+          return `<div class="code-block-wrap" style="position:relative;">`
+            + `<button class="copy-btn" data-code-id="${id}">复制</button>`
+            + `<pre><code${cls || ''} id="${id}">${code}</code></pre>`
+            + `</div>`;
+        });
+        return html;
       } catch {
         return text || "";
+      }
+    },
+    // 复制代码块内容
+    onCopyClick(e) {
+      const btn = e.target.closest('.copy-btn');
+      if (!btn) return;
+      const codeId = btn.getAttribute('data-code-id');
+      if (!codeId) return;
+      const codeEl = document.getElementById(codeId);
+      if (!codeEl) return;
+      let code = codeEl.innerText;
+      // 复制到剪贴板
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => {
+          btn.innerText = '已复制';
+          setTimeout(() => { btn.innerText = '复制'; }, 1200);
+        });
+      } else {
+        // 兼容旧浏览器
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          btn.innerText = '已复制';
+          setTimeout(() => { btn.innerText = '复制'; }, 1200);
+        } catch {}
+        document.body.removeChild(textarea);
       }
     },
     basicSanitize(html) {
@@ -119,7 +239,7 @@ export default {
       this.localMessages.push({ role: "user", text: userText });
       // 助手占位，并记录 index
       const aiIndex =
-        this.localMessages.push({ role: "assistant", text: "", html: "" }) - 1;
+        this.localMessages.push({ role: "assistant", text: "", html: "", hasThought: false }) - 1;
       this.currentAssistantIndex = aiIndex;
       this.streaming = true;
       try {
@@ -149,38 +269,65 @@ export default {
               if (evt && typeof evt === "object") {
                 const status = evt.status;
                 let payload = "";
-                if (status === "thought") {
-                  payload = evt.value ?? evt.message ?? "";
-                } else if (status === "answer") {
-                  payload = evt.value ?? evt.message ?? evt.result ?? "";
-                } else if (status === "final") {
-                  payload = evt.result ?? evt.value ?? evt.message ?? "";
-                } else if (status === "step") {
-                  // 输出步骤事件
-                  if (typeof evt.step !== "undefined" && evt.step !== null) {
-                    payload = `步骤: ${evt.step}`;
-                  } else {
-                    payload = evt.value ?? evt.message ?? "";
-                  }
+                // 如果后端返回错误事件，直接作为聊天信息显示并结束流
+                if (status === "error") {
+                  const msg = evt.message || evt.error || JSON.stringify(evt);
+                  this.localMessages.push({ role: "assistant", text: `错误: ${msg}` });
+                  // abort reader/controller
+                  try { controller?.abort(); } catch {}
+                  this.streaming = false;
+                  this.reader = null;
+                  this.aborter = null;
+                  return;
                 }
-                if (payload) {
-                  const text = String(payload);
-                  if (
-                    this.isHidden &&
-                    this.localMessages[this.currentAssistantIndex]
-                  ) {
-                    // 后台直接写入并换行，避免被打字器/定时器节流
-                    this.localMessages[this.currentAssistantIndex].text +=
-                      text + "\n";
-                    this.localMessages[this.currentAssistantIndex].html =
-                      this.renderMarkdown(
-                        this.localMessages[this.currentAssistantIndex].text
-                      );
-                    this.$nextTick(this.maybeScrollToBottom);
-                  } else {
-                    this.enqueueThought(text);
-                  }
-                }
+                  if (status === "thought") {
+                      payload = evt.value ?? evt.message ?? "";
+                      if (payload) {
+                        const text = String(payload);
+                        // 标记该助手机器人消息包含思考内容
+                        if (this.localMessages[this.currentAssistantIndex]) {
+                          this.localMessages[this.currentAssistantIndex].hasThought = true;
+                        }
+                        if (
+                          this.isHidden &&
+                          this.localMessages[this.currentAssistantIndex]
+                        ) {
+                          this.localMessages[this.currentAssistantIndex].text +=
+                            text + "\n";
+                          this.localMessages[this.currentAssistantIndex].html =
+                            this.renderMarkdown(
+                              this.localMessages[this.currentAssistantIndex].text
+                            );
+                          this.$nextTick(this.maybeScrollToBottom);
+                        } else {
+                          this.enqueueThought(text);
+                        }
+                      }
+                    } else if (status === "final") {
+                      payload = evt.result ?? evt.value ?? evt.message ?? "";
+                      if (payload) {
+                        // 只在final时输出最终内容，但如果当前还在输出思考（打字机活跃或队列不空），
+                        // 则先保存到 pendingFinal，等待打字完成后再追加，保证思考先完成再显示回答。
+                        const text = String(payload);
+                        const idx = this.currentAssistantIndex;
+                        if (this.typingActive || this.typingQueue.length > 0) {
+                          // 延迟写入最终答案
+                          this.pendingFinal = text;
+                        } else {
+                          if (this.localMessages[idx]) {
+                            const hadThought = !!this.localMessages[idx].hasThought;
+                            // 如果之前有思考内容，插入 markdown 的水平线作为分割
+                            const add = (hadThought ? "\n\n---\n\n" : "") + "**" + text + "**";
+                            this.localMessages[idx].text += add + "\n";
+                            this.localMessages[idx].html = this.renderMarkdown(this.localMessages[idx].text);
+                            this.$nextTick(this.maybeScrollToBottom);
+                          } else {
+                            // 回退：如果未找到占位，就入队正常显示
+                            this.enqueueThought("**" + text + "**");
+                          }
+                        }
+                      }
+                    }
               }
             } catch {
               // 忽略非 JSON 行
@@ -206,6 +353,40 @@ export default {
       // 中止打字并清空队列
       this.typeAbort = true;
       this.typingQueue = [];
+  // 清理任何待写入的最终答案
+  this.pendingFinal = null;
+    },
+    async clearHistory() {
+      try {
+        const res = await agentRequest('/chat_session/clear_chat_history', { method: 'DELETE' });
+        // agentRequest 可能返回 Response-like 对象或解码后的 JSON。
+        // 如果后端返回解析后的 JSON 包含 message 表示成功（例如 {message: '聊天记录已清除'}），也应视为成功。
+        const isSuccess = !!(
+          (res && (res.status === 200 || res.code === 200)) ||
+          (res && typeof res === 'object' && typeof res.message === 'string' && /清除|已清除|删除|已删除|刪除|已刪除/.test(res.message))
+        );
+        if (isSuccess) {
+          // 清空历史后在顶部显示一次系统提示，然后短暂显示后移除
+          if (this.clearNoticeTimer) {
+            clearTimeout(this.clearNoticeTimer);
+            this.clearNoticeTimer = null;
+          }
+          this.localMessages = [];
+          // 把提示插入到数组顶端
+          this.localMessages.unshift({ role: 'system', text: '聊天记录已清除' });
+          this.clearNoticeTimer = setTimeout(() => {
+            // 移除提示（保持历史已清空）
+            this.localMessages = [];
+            this.clearNoticeTimer = null;
+          }, 1500);
+        } else {
+          const status = res?.status ?? (res?.code ?? 'unknown');
+          const text = res?.text ?? (res?.message ?? JSON.stringify(res));
+          this.localMessages.push({ role: 'system', text: `清除失败: ${status}, ${text}` });
+        }
+      } catch (e) {
+        this.localMessages.push({ role: 'system', text: `清除失败: ${e?.message || e}` });
+      }
     },
     scrollToBottom() {
       const el = this.$refs.msgBox;
@@ -262,6 +443,20 @@ export default {
         }
       } finally {
         this.typingActive = false;
+        // 如果在打字过程中收到了 final（被延迟），现在把它写入消息
+        if (this.pendingFinal) {
+          const text = String(this.pendingFinal);
+          const hadThought = this.localMessages[idx] ? !!this.localMessages[idx].hasThought : false;
+          const add = (hadThought ? "\n\n---\n\n" : "") + "**" + text + "**";
+          if (this.localMessages[idx]) {
+            this.localMessages[idx].text += add + "\n";
+            this.localMessages[idx].html = this.renderMarkdown(this.localMessages[idx].text);
+            this.$nextTick(this.maybeScrollToBottom);
+          } else {
+            this.enqueueThought("**" + text + "**");
+          }
+          this.pendingFinal = null;
+        }
       }
     },
   },
@@ -269,16 +464,19 @@ export default {
 </script>
 
 <style scoped>
+/* 聊天区域主盒子占满父容器 */
 .chat-section {
   background: #1e1e1e;
   border: 1px solid #2a2a2a;
   border-radius: 10px;
-  padding: 12px; /* 自身内边距 */
-  /* 弹性填充父容器，避免超过视口 */
+  padding: 12px;
+  position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
   color: #e0e0e0;
+  flex: 1 1 0;
+  height: 100%;
 }
 .messages {
   flex: 1 1 auto;
@@ -293,22 +491,76 @@ export default {
   padding: 10px;
 }
 .msg {
-  margin: 6px 0;
+  margin: 10px 0;
+  display: flex;
+  justify-content: flex-start;
 }
-.msg .role {
+.msg.user {
+  justify-content: flex-end;
+}
+.bubble-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 80%;
+}
+.msg.user .bubble-wrap {
+  align-items: flex-end;
+}
+.bubble-wrap .role {
+  font-size: 13px;
   color: #9aa0a6;
-  margin-right: 4px;
+  margin-bottom: 2px;
+  margin-left: 6px;
+  margin-right: 6px;
 }
-.msg .text {
-  /* Markdown 已转为 HTML，这里正常换行，长词断行 */
-  white-space: normal;
+.msg.user .bubble-wrap .role {
+  color: #8ab4f8;
+  align-self: flex-end;
+}
+.msg.assistant .bubble-wrap .role {
+  color: #81c995;
+  align-self: flex-start;
+}
+.bubble {
+  background: #23272f;
+  color: #e0e0e0;
+  border-radius: 18px;
+  padding: 10px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  word-break: break-word;
+  white-space: pre-line;
+  font-size: 16px;
+  position: relative;
+}
+.msg.user .bubble {
+  background: linear-gradient(90deg, #3a8bf6 80%, #3a8bf6 100%);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  border-top-right-radius: 18px;
+  border-top-left-radius: 18px;
+  border-bottom-left-radius: 18px;
+}
+.msg.assistant .bubble {
+  background: #23272f;
+  color: #e0e0e0;
+  border-bottom-left-radius: 4px;
+  border-top-right-radius: 18px;
+  border-top-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+.bubble .text {
+  white-space: pre-line;
   word-break: break-word;
 }
-.msg.user .role {
-  color: #8ab4f8;
+.bubble .text hr {
+  border: none;
+  border-top: 1px dashed rgba(255,255,255,0.12);
+  margin: 8px 0;
 }
-.msg.assistant .role {
-  color: #81c995;
+.bubble .text strong {
+  font-weight: 800;
+  color: #ffffff;
 }
 .composer {
   display: flex;
@@ -323,33 +575,35 @@ export default {
   flex: 1;
   border: 1px solid #333;
   border-radius: 8px;
-  padding: 8px 10px;
+  background: linear-gradient(90deg, #3a8bf6 80%, #3a8bf6 100%);
   outline: none;
   background: #121212;
   color: #e0e0e0;
 }
 .composer input:focus {
-  border-color: #6b4ce6;
-  box-shadow: 0 0 0 3px rgba(107, 76, 230, 0.25);
+  outline: none;
+  border-color: inherit;
+  box-shadow: none;
+  background: #121212;
 }
 .btn {
-  border: 1px solid #333;
-  background: #2a2a2a;
+  border: 1px solid rgba(0,0,0,0.25);
+  background: #3a8bf6;
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
-  color: #e0e0e0;
+  color: #ffffff;
 }
 .btn:hover {
-  background: #353535;
+  background: #2f7ddf;
 }
 .btn.primary {
-  background: #6b4ce6;
-  color: #fff;
-  border-color: #6b4ce6;
+  background: #3a8bf6;
+  color: #ffffff;
+  border-color: #3a8bf6;
 }
 .btn.primary:hover {
-  background: #7a5bf0;
+  background: #2f7ddf;
 }
 
 .jump-bottom {
@@ -365,6 +619,22 @@ export default {
 }
 .jump-bottom:hover {
   background: #353535;
+}
+
+/* 清空历史按钮，定位于 messages 容器右上角 */
+.clear-history-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 999px;
+  background: rgba(58,139,246,0.95);
+  color: #fff;
+}
+.clear-history-btn:hover {
+  background: rgba(47,125,223,0.98);
 }
 
 /* 聊天区域滚动条（纯黑系） */
@@ -386,5 +656,96 @@ export default {
 .messages {
   scrollbar-width: thin;
   scrollbar-color: #0d0d0d #000;
+}
+
+/* 代码块复制按钮样式 */
+/* 代码块复制按钮样式优化，保证在气泡内右上角始终可见 */
+.code-block-bubble {
+  position: relative;
+  margin: 8px 0;
+}
+.code-block-bubble .copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 10;
+  font-size: 13px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: none;
+  background: #3a8bf6;
+  color: #fff;
+  cursor: pointer;
+  opacity: 0.92;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: background 0.2s, opacity 0.2s;
+}
+.code-block-bubble .copy-btn:hover {
+  background: #2f7ddf;
+  opacity: 1;
+}
+@media (max-width: 600px) {
+  .code-block-bubble .copy-btn {
+    font-size: 15px;
+    padding: 6px 16px;
+    top: 4px;
+    right: 4px;
+  }
+}
+
+/* 响应式布局：移动端适配 */
+@media (max-width: 600px) {
+  .chat-section {
+    padding: 4px;
+    border-radius: 0;
+    font-size: 15px;
+  }
+  .messages {
+    padding: 4px;
+    border-radius: 0;
+    margin-bottom: 8px;
+    font-size: 15px;
+  }
+  .msg {
+    margin: 6px 0;
+    font-size: 15px;
+  }
+  .bubble-wrap {
+    max-width: 95%;
+  }
+  .bubble {
+    font-size: 15px;
+    padding: 8px 12px;
+  }
+  .composer {
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 0;
+  }
+  .composer input {
+    padding: 7px 8px;
+    font-size: 15px;
+    border-radius: 6px;
+  }
+  .btn {
+    width: 100%;
+    padding: 8px 0;
+    font-size: 15px;
+    border-radius: 6px;
+  }
+  .jump-bottom {
+    right: 8px;
+    bottom: 8px;
+    padding: 5px 8px;
+    font-size: 14px;
+    border-radius: 999px;
+  }
+  .clear-history-btn {
+    top: 6px;
+    right: 6px;
+    padding: 5px 8px;
+    font-size: 13px;
+  }
 }
 </style>

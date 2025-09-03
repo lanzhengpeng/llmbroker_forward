@@ -1209,7 +1209,7 @@ export default {
   min-width: 160px;
 }
 .model-input::placeholder { color: #9aa0a6; }
-.model-input:focus { border-color: #4a9eff; box-shadow: 0 0 0 3px rgba(74,158,255,0.12); }
+.model-input:focus { outline: none; border-color: inherit; box-shadow: none; }
 
 .model-select-wrap { display: inline-flex; align-items: center; gap: 6px; position: relative; }
 .model-select { position: relative; display: inline-block; }
@@ -1397,7 +1397,9 @@ export default {
 }
 
 .input-box:focus {
-  border-color: #4a9eff;
+  outline: none;
+  border-color: inherit;
+  box-shadow: none;
 }
 
 .input-box:disabled {

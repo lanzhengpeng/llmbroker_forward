@@ -7,6 +7,10 @@ link[rel="icon"] {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  /* 主题色（按钮、主要交互）*/
+  --accent-blue: #4a9eff;
+  --accent-hover: #3c8ee8;
+  --btn-text-light: #ffffff;
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
@@ -35,10 +39,24 @@ body {
 }
 
 /* 全局深色滚动条（WebKit 系）*/
-*::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-track { background: #0f0f0f; }
-*::-webkit-scrollbar-thumb { background-color: #2f2f2f; border-radius: 10px; border: 2px solid #0f0f0f; }
-*::-webkit-scrollbar-thumb:hover { background-color: #444; }
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0f0f0f;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #2f2f2f;
+  border-radius: 10px;
+  border: 2px solid #0f0f0f;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #444;
+}
 
 /* Firefox 滚动条色彩 */
 * {
@@ -67,9 +85,14 @@ button:hover {
   border-color: #646cff;
 }
 
-button:focus,
+button:focus {
+  outline: none;
+}
+
+/* 对于键盘可见焦点，使用非常微弱的环形阴影以保留可访问性，但不产生强烈的边框高亮 */
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(74, 158, 255, 0.08);
 }
 
 .card {
@@ -77,9 +100,12 @@ button:focus-visible {
 }
 
 #app {
-  margin: 0;           /* 移除外边距 */
-  padding: 0;          /* 移除内边距 */
-  max-width: none;     /* 允许全宽 */
+  margin: 0;
+  /* 移除外边距 */
+  padding: 0;
+  /* 移除内边距 */
+  max-width: none;
+  /* 允许全宽 */
   width: 100vw;
   height: 100vh;
 }

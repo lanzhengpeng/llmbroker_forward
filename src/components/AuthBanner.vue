@@ -26,7 +26,7 @@ export default {
 <style scoped>
 .auth-banner {
   position: relative;
-  background: linear-gradient(90deg, #6d28d9, #7c3aed, #a855f7);
+  background: linear-gradient(90deg, #2f7ddf, #3a8bf6, #6aa3f8);
   color: #fff;
   cursor: pointer;
   user-select: none;
@@ -39,6 +39,9 @@ export default {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.3);
+  padding: 4px 8px; /* smaller */
+  font-size: 13px;
+  border-radius: 6px;
 }
 .banner-content {
   padding: 0; /* 取消内边距 */

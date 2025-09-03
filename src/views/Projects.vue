@@ -128,6 +128,7 @@ export default {
       _db: null,
     };
   },
+
   async mounted() {
     document.body.classList.add("projects-full-bleed");
     

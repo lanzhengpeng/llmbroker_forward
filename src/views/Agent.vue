@@ -16,19 +16,15 @@
       />
     </transition>
 
-    <!-- 主体布局：左右分栏，左侧上下分栏 -->
-    <div class="agent-layout">
-      <section class="left-panel">
-        <LeftSplitPanel
-          v-model="promptText"
-          :tools="tools"
-          @add="onAddTool"
-          @fetch="onFetchTools"
-          @test="onTestTool"
-        />
+    <!-- 主体布局：三栏 -->
+    <div class="agent-layout three-cols">
+      <section class="col prompt-col">
+        <PromptSection v-model="promptText" />
       </section>
-
-      <section class="right-panel">
+      <section class="col tools-col">
+        <ToolsSection :tools="tools" @add="onAddTool" @fetch="onFetchTools" @test="onTestTool" @clear="onClearTools" />
+      </section>
+      <section class="col chat-col">
         <ChatSection :messages="messages" @send="onSendMessage" />
       </section>
     </div>
@@ -44,7 +40,8 @@ import {
 } from "../api/client.js";
 import AuthBanner from "../components/AuthBanner.vue";
 import AuthPanel from "../components/AuthPanel.vue";
-import LeftSplitPanel from "../components/LeftSplitPanel.vue";
+import PromptSection from "../components/PromptSection.vue";
+import ToolsSection from "../components/ToolsSection.vue";
 import ChatSection from "../components/ChatSection.vue";
 
 export default {
@@ -52,7 +49,8 @@ export default {
   components: {
     AuthBanner,
     AuthPanel,
-    LeftSplitPanel,
+    PromptSection,
+    ToolsSection,
     ChatSection,
   },
   data() {
@@ -113,7 +111,13 @@ export default {
         return;
       }
       try {
-        await apiLogin(username, password); // 暂用登录获取 token
+        // 先调用注册接口
+        await agentRequest('/user/register', {
+          method: 'POST',
+          body: { username, password },
+        });
+        // 注册成功后自动登录以获取 token
+        await apiLogin(username, password);
         this.user = { username };
         localStorage.setItem("agent_user", JSON.stringify(this.user));
         this.closeAuth();
@@ -141,8 +145,7 @@ export default {
           alert("OpenAPI JSON 解析失败，请粘贴有效的 JSON 文本。");
           return;
         }
-
-        const res = await agentRequest("/agent/register_tools", {
+  const res = await agentRequest("/tool/register_tools", {
           method: "POST",
           body: { base_url: url, openapi_json: openapiJson },
         });
@@ -150,7 +153,6 @@ export default {
         alert(msg);
       } catch (e) {
         console.error("添加工具失败:", e);
-        // 简单提示
         alert(e?.message || "添加工具失败");
       }
     },
@@ -175,10 +177,8 @@ export default {
     },
     // 工具：单独测试
     async onTestTool(payload) {
-      // payload: { index, toolName, params }
       const { index, toolName, params } = payload || {};
       if (index == null || !this.tools[index]) return;
-      // 标记测试中
       this.tools = this.tools.map((t, i) =>
         i === index ? { ...t, testing: true, testResult: undefined } : t
       );
@@ -206,6 +206,24 @@ export default {
         );
       }
     },
+    // 工具：清空所有工具
+    async onClearTools() {
+      if (!confirm('确定要清空所有工具吗？此操作不可逆。')) return;
+      try {
+        const res = await agentRequest('/tool/clear_tools', { method: 'DELETE', body: {} });
+        // 兼容后端可能返回不同结构
+        const ok = res && (res.success || res.code === 0 || /清除|已清空|ok/i.test(JSON.stringify(res)));
+        if (ok) {
+          this.tools = [];
+          alert('已清空所有工具');
+        } else {
+          alert((res && (res.message || res.detail)) || '清空工具返回未知结果');
+        }
+      } catch (e) {
+        console.error('清空工具失败:', e);
+        alert(e?.message || '清空工具失败');
+      }
+    },
     // 占位：聊天发送
     onSendMessage(text) {
       if (!text) return;
@@ -223,56 +241,64 @@ export default {
   height: 100vh;
   background: #121212;
   color: #e0e0e0;
-  overflow: hidden; /* 外层不出现滚动条 */
-  position: fixed; /* 固定充满窗口，彻底不让 body 出滚动条 */
+  overflow: hidden;
+  position: fixed;
   inset: 0;
 }
 
-/* 主体布局 */
-.agent-layout {
+/* 三栏布局 */
+.agent-layout.three-cols {
   display: flex;
-  gap: 0;
-  padding: 0; /* 取消内边距 */
-  box-sizing: border-box;
-  flex: 1 1 auto;
-  min-height: 0; /* 关键：允许子项按视口弹性收缩 */
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+  background: #18181c;
+  overflow: hidden;
 }
-
-.left-panel,
-.right-panel {
-  background: #1e1e1e;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 0; /* 取消 panel 内部 padding */
-  box-sizing: border-box;
-  min-height: 0; /* 防止内容把高度撑破视口 */
-}
-
-.left-panel {
-  flex: 0 0 38%;
-  min-width: 280px;
+.col {
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* 避免父级抢滚动，由内部 pane 控制 */
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 8px;
 }
-
-.right-panel {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; /* 由内部 ChatSection 控制滚动 */
+/* 三大板块均分空间，沾满整个区域 */
+.prompt-col,
+.tools-col,
+.chat-col {
+  /* 强制等宽：每列占据三分之一宽度 */
+  flex: 0 0 33.3333%;
+  max-width: 33.3333%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-right: 1px solid #222;
 }
-
-/* 让 ChatSection 充满右侧并自行管理内部滚动 */
-.right-panel > * {
-  flex: 1 1 auto;
-  min-height: 0;
+.chat-col {
+  border-right: none;
 }
-
-/* 让 LeftSplitPanel 占满左侧可用高度 */
-.left-panel > * {
-  flex: 1 1 auto;
-  min-height: 0;
+@media (max-width: 1100px) {
+  .agent-layout.three-cols {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  .col {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 4px;
+    border-right: none;
+    border-bottom: 1px solid #222;
+  }
+  .prompt-col, .tools-col, .chat-col {
+    max-width: none;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid #222;
+  }
+  .chat-col {
+    border-bottom: none;
+  }
 }
 
 /* 过渡（用于 AuthPanel 出入场） */
@@ -286,3 +312,5 @@ export default {
   transform: translateY(-6px);
 }
 </style>
+
+cdexwss
