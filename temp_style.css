@@ -1,0 +1,23 @@
+/* 左侧底部Banner样式 */
+.left-bottom-banner {
+    position: relative;
+    background: #f8f9fa;
+    padding: 12px;
+    flex-shrink: 0;
+    border-top: 1px solid #e0e0e0;
+}
+
+.left-bottom-banner .bottom-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    /* 靠左显示 */
+}
+
+.left-bottom-banner .bottom-avatar img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+}

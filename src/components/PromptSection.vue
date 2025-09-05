@@ -1,6 +1,5 @@
 <template>
   <section class="prompt-section">
-    <h2>提示词编排</h2>
     <div class="section-body">
       <textarea
         class="command-input"
@@ -103,67 +102,61 @@ export default {
 .prompt-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  background: #1e1e1e;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 12px;
+  gap: 8px;
+  background: transparent; /* 去掉卡片背景 */
+  border: none; /* 去掉边框 */
+  border-radius: 0;
+  padding: 6px 4px; /* 更紧凑的内边距 */
   min-height: 0;
   flex: 1 1 0;
   height: 100%;
+  color: #333333; /* 添加深色文字 */
 }
 .section-body {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden; /* 保证内部 textarea 使用自己的滚动 */
 }
 .section-footer {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding-top: 10px;
+  padding-top: 8px;
 }
 .confirm-btn {
-  background: #3a8bf6;
-  color: #fff;
+  background: #ffffff;
+  color: #000;
   border: none;
-  border-radius: 8px;
-  padding: 8px 24px;
-  font-size: 16px;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: background 0.14s ease, transform 0.12s ease, box-shadow 0.12s ease,
-    border-color 0.12s ease;
+  transition: background 0.14s ease, transform 0.12s ease;
 }
 .confirm-btn:hover {
-  background: #2f7ddf;
+  background: #f0f0f0;
   transform: translateY(-1px);
-  box-shadow: 0 10px 30px rgba(58, 139, 246, 0.12);
 }
 .confirm-btn:active {
   transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
-.section-body {
-  flex: 1 1 auto;
-  overflow-y: auto; /* 仅保留竖向滚动 */
-  overflow-x: hidden; /* 隐藏横向滚动条 */
-}
 .command-input {
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto; /* 弹性占满剩余空间 */
   min-height: 120px;
+  height: auto;
   resize: none;
   padding: 10px 12px;
-  border: 1px solid #333;
+  border: 1px solid #d0d0d0;
   border-radius: 8px;
   outline: none;
   font-size: 14px;
   line-height: 1.6;
-  background: #121212; /* 深黑 */
-  color: #e0e0e0; /* 浅色文字 */
+  background: #ffffff; /* 白色背景 */
+  color: #333333; /* 深色文字 */
   overflow-y: auto; /* 仅保留竖向滚动 */
   overflow-x: hidden; /* 隐藏横向滚动条 */
 }
@@ -193,22 +186,22 @@ export default {
 }
 .section-body::-webkit-scrollbar-track,
 .command-input::-webkit-scrollbar-track {
-  background: #000;
+  background: #f5f5f5;
 }
 .section-body::-webkit-scrollbar-thumb,
 .command-input::-webkit-scrollbar-thumb {
-  background-color: #0d0d0d;
+  background-color: #d0d0d0;
   border-radius: 10px;
-  border: 2px solid #000;
+  border: 2px solid #f5f5f5;
 }
 .section-body::-webkit-scrollbar-thumb:hover,
 .command-input::-webkit-scrollbar-thumb:hover {
-  background-color: #1a1a1a;
+  background-color: #b0b0b0;
 }
 
 .section-body,
 .command-input {
   scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #0d0d0d #000; /* thumb track */
+  scrollbar-color: #d0d0d0 #f5f5f5; /* thumb track */
 }
 </style>

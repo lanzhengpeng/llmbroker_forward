@@ -3,11 +3,13 @@ import Chat from '../views/Chat.vue'
 import Test from "../views/Index.vue"
 import Agent from '../views/Agent.vue'
 const Projects = () => import('../views/Projects.vue')
+const ToolView = () => import('../views/Tool.vue')
 
 const routes = [
     { path: '/chat', component: Chat },
     { path: '/projects', component: Projects },
     { path: '/agent', component: Agent },
+    { path: '/tool/:name', component: ToolView, props: true },
     { path: '/', component: Test }
     // 可以在这里添加其他页面路由
 ]

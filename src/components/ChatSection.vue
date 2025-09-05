@@ -1,7 +1,5 @@
 <template>
   <section class="chat-section">
-    <h2>聊天区</h2>
-    <button class="clear-history-btn btn" @click="clearHistory">清空历史</button>
     <div class="messages" ref="msgBox" @scroll="onMessagesScroll">
       <div
         v-for="(m, idx) in localMessages"
@@ -99,6 +97,10 @@ export default {
     },
   },
   methods: {
+    onZoom() {
+      // 发送切换左侧栏的事件
+      this.$emit('toggle-left-panel');
+    },
     // 从后端加载聊天历史并映射到 localMessages
     async loadHistory() {
       try {
@@ -466,15 +468,15 @@ export default {
 <style scoped>
 /* 聊天区域主盒子占满父容器 */
 .chat-section {
-  background: #1e1e1e;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 12px;
+  background: transparent; /* 去掉卡片外壳 */
+  border: none;
+  border-radius: 0;
+  padding: 0; /* 消除与父容器的间隙 */
   position: relative;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  color: #e0e0e0;
+  color: #333333;
   flex: 1 1 0;
   height: 100%;
 }
@@ -485,10 +487,10 @@ export default {
   overflow-x: hidden; /* 不需要横向滚动 */
   position: relative; /* 使回到底部按钮定位于容器内 */
   margin-bottom: 12px;
-  background: #000; /* 消息区纯黑背景 */
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 10px;
+  background: transparent; /* 去掉消息区背景 */
+  border: none;
+  border-radius: 0;
+  padding: 4px 0; /* 更紧凑 */
 }
 .msg {
   margin: 10px 0;
@@ -509,22 +511,22 @@ export default {
 }
 .bubble-wrap .role {
   font-size: 13px;
-  color: #9aa0a6;
+  color: #666666;
   margin-bottom: 2px;
   margin-left: 6px;
   margin-right: 6px;
 }
 .msg.user .bubble-wrap .role {
-  color: #8ab4f8;
+  color: #333333;
   align-self: flex-end;
 }
 .msg.assistant .bubble-wrap .role {
-  color: #81c995;
+  color: #333333;
   align-self: flex-start;
 }
 .bubble {
-  background: #23272f;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #333333;
   border-radius: 18px;
   padding: 10px 16px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -534,16 +536,16 @@ export default {
   position: relative;
 }
 .msg.user .bubble {
-  background: linear-gradient(90deg, #3a8bf6 80%, #3a8bf6 100%);
-  color: #fff;
+  background: linear-gradient(90deg, #ffffff 80%, #ffffff 100%);
+  color: #000;
   border-bottom-right-radius: 4px;
   border-top-right-radius: 18px;
   border-top-left-radius: 18px;
   border-bottom-left-radius: 18px;
 }
 .msg.assistant .bubble {
-  background: #23272f;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #333333;
   border-bottom-left-radius: 4px;
   border-top-right-radius: 18px;
   border-top-left-radius: 18px;
@@ -560,50 +562,50 @@ export default {
 }
 .bubble .text strong {
   font-weight: 800;
-  color: #ffffff;
+  color: #000000;
 }
 .composer {
   display: flex;
   gap: 8px;
   flex: 0 0 auto; /* 固定在底部，不随消息区滚动 */
-  background: #1a1a1a; /* 深灰底，更贴近黑色主题 */
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 8px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 6px 0;
 }
 .composer input {
   flex: 1;
-  border: 1px solid #333;
+  border: 1px solid #d0d0d0;
   border-radius: 8px;
-  background: linear-gradient(90deg, #3a8bf6 80%, #3a8bf6 100%);
+  background: #ffffff;
   outline: none;
-  background: #121212;
-  color: #e0e0e0;
+  padding: 8px 12px;
+  color: #333333;
 }
 .composer input:focus {
   outline: none;
-  border-color: inherit;
+  border-color: #b0b0b0;
   box-shadow: none;
-  background: #121212;
+  background: #ffffff;
 }
 .btn {
   border: 1px solid rgba(0,0,0,0.25);
-  background: #3a8bf6;
+  background: #ffffff;
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
-  color: #ffffff;
+  color: #000000;
 }
 .btn:hover {
-  background: #2f7ddf;
+  background: #f0f0f0;
 }
 .btn.primary {
-  background: #3a8bf6;
-  color: #ffffff;
-  border-color: #3a8bf6;
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
 }
 .btn.primary:hover {
-  background: #2f7ddf;
+  background: #f0f0f0;
 }
 
 .jump-bottom {
@@ -611,51 +613,35 @@ export default {
   right: 14px;
   bottom: 14px;
   padding: 6px 10px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  color: #e0e0e0;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  color: #333333;
   border-radius: 999px;
   cursor: pointer;
 }
 .jump-bottom:hover {
-  background: #353535;
+  background: #f8f8f8;
 }
 
-/* 清空历史按钮，定位于 messages 容器右上角 */
-.clear-history-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 20;
-  padding: 6px 10px;
-  font-size: 13px;
-  border-radius: 999px;
-  background: rgba(58,139,246,0.95);
-  color: #fff;
-}
-.clear-history-btn:hover {
-  background: rgba(47,125,223,0.98);
-}
-
-/* 聊天区域滚动条（纯黑系） */
+/* 聊天区域滚动条（白色系） */
 .messages::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .messages::-webkit-scrollbar-track {
-  background: #000;
+  background: #ffffff;
 }
 .messages::-webkit-scrollbar-thumb {
-  background-color: #0d0d0d;
+  background-color: #d0d0d0;
   border-radius: 10px;
-  border: 2px solid #000;
+  border: 2px solid #ffffff;
 }
 .messages::-webkit-scrollbar-thumb:hover {
-  background-color: #1a1a1a;
+  background-color: #b0b0b0;
 }
 .messages {
   scrollbar-width: thin;
-  scrollbar-color: #0d0d0d #000;
+  scrollbar-color: #d0d0d0 #ffffff;
 }
 
 /* 代码块复制按钮样式 */
@@ -673,15 +659,15 @@ export default {
   padding: 2px 10px;
   border-radius: 6px;
   border: none;
-  background: #3a8bf6;
-  color: #fff;
+  background: #ffffff;
+  color: #000;
   cursor: pointer;
   opacity: 0.92;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   transition: background 0.2s, opacity 0.2s;
 }
 .code-block-bubble .copy-btn:hover {
-  background: #2f7ddf;
+  background: #f0f0f0;
   opacity: 1;
 }
 @media (max-width: 600px) {
@@ -696,7 +682,7 @@ export default {
 /* 响应式布局：移动端适配 */
 @media (max-width: 600px) {
   .chat-section {
-    padding: 4px;
+    padding: 0;
     border-radius: 0;
     font-size: 15px;
   }
@@ -740,12 +726,6 @@ export default {
     padding: 5px 8px;
     font-size: 14px;
     border-radius: 999px;
-  }
-  .clear-history-btn {
-    top: 6px;
-    right: 6px;
-    padding: 5px 8px;
-    font-size: 13px;
   }
 }
 </style>

@@ -297,8 +297,8 @@ export default {
   transition: background 0.12s ease, transform 0.08s ease;
 }
 .btn.primary {
-  background: #3a8bf6; /* 保留一个清晰的主色按钮 */
-  color: #fff;
+  background: #ffffff; /* 改为白色主题 */
+  color: #000;
   border: none;
 }
 

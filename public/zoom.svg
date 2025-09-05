@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <!-- 使用 currentColor 便于通过 CSS 控制颜色 -->
+  <rect x="4" y="2" width="16" height="20" rx="1.8" stroke="currentColor" stroke-width="1.6" fill="none"/>
+  <!-- 门把手 -->
+  <circle cx="15.5" cy="12" r="0.7" fill="currentColor"/>
+</svg>

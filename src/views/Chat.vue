@@ -170,7 +170,7 @@
       <div class="messages" ref="messagesContainer">
         <!-- 欢迎占位：仅当没有任何用户消息时显示 -->
         <div v-if="!hasUserMessage" class="welcome-empty">
-          你好！欢迎使用聊天
+          你好！欢迎使用Agent智能体
         </div>
         <template v-else>
           <div
@@ -258,7 +258,7 @@ export default {
   data() {
     return {
       inputText: "",
-      messages: [{ from: "bot", text: "你好！欢迎使用聊天" }],
+      messages: [{ from: "bot", text: "你好！欢迎使用Agent智能体" }],
       loading: false,
       isThinking: false, // 思考中状态
       thinkingStartTime: null, // 思考开始时间
@@ -643,7 +643,7 @@ export default {
     },
     clearChat() {
       if (this.loading) return;
-      this.messages = [{ from: "bot", text: "你好！欢迎使用聊天" }];
+      this.messages = [{ from: "bot", text: "你好！欢迎使用Agent智能体" }];
       this.error = null;
     },
     retryLast() {

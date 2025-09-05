@@ -1,8 +1,5 @@
 <template>
   <div class="agent-page">
-    <!-- 顶部 Banner -->
-    <AuthBanner :user="user" @toggle-auth="onToggleAuth" @go-home="goHome" />
-
     <!-- 登录/注册面板 -->
     <transition name="fade-slide">
       <AuthPanel
@@ -16,25 +13,72 @@
       />
     </transition>
 
-    <!-- 主体布局：三栏 -->
-    <div class="agent-layout three-cols">
-      <section class="col prompt-col">
-        <PromptSection v-model="promptText" />
+    <!-- 主体布局：两栏，左侧为工具/提示切换面板，右侧为聊天 -->
+    <div class="agent-layout two-cols" :class="{ 'left-collapsed': !leftColVisible }">
+      <section class="col left-col" :class="{ 'collapsed': !leftColVisible }">
+        <!-- 左侧Banner部分 -->
+        <div class="left-banner" v-show="leftColVisible">
+          <button
+            class="home-btn btn"
+            @click.stop="goHome"
+            aria-label="返回主页"
+          >
+            返回主页
+          </button>
+        </div>
+        
+        <!-- 收起状态下显示的编辑提示词图标 - 在内容区域上方 -->
+        <div class="collapsed-prompt-btn" @click="openPromptModal" title="编辑提示词">
+          <img src="/prompt.svg" alt="编辑提示词" />
+        </div>
+        
+        <div class="left-content" v-show="leftColVisible">
+          <div class="panel">
+            <ToolsSection
+              ref="toolsSection"
+              :tools="tools"
+              @add="onAddTool"
+              @fetch="onFetchTools"
+              @load="onLoadTools"
+              @test="onTestTool"
+              @clear="onClearTools"
+              @save="onSaveTool"
+              @delete="onDeleteTool"
+            />
+          </div>
+        </div>
+
+        <!-- 左侧底部Banner - 始终显示 -->
+        <div class="left-bottom-banner">
+          <div class="bottom-avatar" @click="onToggleAuth" :title="user ? `当前账号：${user.username}` : '点击管理账户'">
+            <img src="/头像.png" alt="用户头像" />
+          </div>
+        </div>
       </section>
-      <section class="col tools-col">
-        <ToolsSection
-          :tools="tools"
-          @add="onAddTool"
-          @fetch="onFetchTools"
-          @load="onLoadTools"
-          @test="onTestTool"
-          @clear="onClearTools"
-          @save="onSaveTool"
-          @delete="onDeleteTool"
-        />
-      </section>
+
       <section class="col chat-col">
-        <ChatSection :messages="messages" @send="onSendMessage" />
+        <!-- 右侧Banner部分 -->
+        <div class="right-banner" :class="{ 'has-messages': messages.length > 0 }">
+          <div class="banner-left">
+            <button class="zoom-btn" @click="toggleLeftPanel">
+              <img src="/zoom.svg" alt="缩放" />
+            </button>
+            <h2>Agent智能体</h2>
+          </div>
+          <div class="banner-content">
+            <!-- 中间区域空白 -->
+          </div>
+          <div class="new-chat-btn" @click="startNewChat" title="新建对话">
+            <img src="/new_chat.svg" alt="新建对话" />
+          </div>
+        </div>
+        
+        <ChatSection 
+          ref="chatSection"
+          :messages="messages" 
+          @send="onSendMessage" 
+          @toggle-left-panel="toggleLeftPanel" 
+        />
       </section>
     </div>
   </div>
@@ -68,6 +112,10 @@ export default {
       user: null,
       showAuth: false,
       authError: "",
+      // 左侧视图：'tools' 或 'prompt'
+      leftView: "tools",
+      // 左侧栏显示控制
+      leftColVisible: true,
       // 业务数据
       promptText: "",
       tools: [],
@@ -322,6 +370,27 @@ export default {
       if (!text) return;
       this.messages.push({ role: "user", text });
     },
+    // 切换左侧栏显示/隐藏
+    toggleLeftPanel() {
+      this.leftColVisible = !this.leftColVisible;
+    },
+    // 新建对话
+    startNewChat() {
+      // 调用ChatSection的clearHistory方法来清空历史记录
+      if (this.$refs.chatSection && this.$refs.chatSection.clearHistory) {
+        this.$refs.chatSection.clearHistory();
+      } else {
+        // 兜底方案：直接清空本地消息
+        this.messages = [];
+      }
+    },
+    // 打开编辑提示词模态框
+    openPromptModal() {
+      // 通过ref调用ToolsSection的编辑提示词功能
+      if (this.$refs.toolsSection && this.$refs.toolsSection.setActive) {
+        this.$refs.toolsSection.setActive('prompt');
+      }
+    },
   },
 };
 </script>
@@ -332,21 +401,27 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #121212;
-  color: #e0e0e0;
+  background: #ffffff;
+  color: #333333;
   overflow: hidden;
   position: fixed;
   inset: 0;
 }
 
-/* 三栏布局 */
-.agent-layout.three-cols {
+/* 两栏布局 */
+.agent-layout.two-cols {
   display: flex;
   flex-direction: row;
   height: 100%;
   width: 100%;
-  background: #18181c;
+  background: #ffffff;
   overflow: hidden;
+}
+
+/* 当左侧栏收起时，聊天区域调整宽度 */
+.agent-layout.two-cols.left-collapsed .chat-col {
+  width: calc(100% - 56px); /* 减去收起后的侧边栏宽度 */
+  flex: 1 1 calc(100% - 56px);
 }
 .col {
   display: flex;
@@ -354,46 +429,139 @@ export default {
   height: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 12px 8px;
+  padding: 0; /* 移除原有padding，让banner自己控制间距 */
 }
-/* 三大板块均分空间，沾满整个区域 */
-.prompt-col,
-.tools-col,
+.left-col {
+  flex: 0 0 256px; /* 左侧固定宽度，从320px缩短1/5到256px */
+  max-width: 40%;
+  min-width: 220px;
+  box-sizing: border-box;
+  border-right: 1px solid #e0e0e0;
+  background: #f8f9fa; /* 改为浅灰色背景 */
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease; /* 添加平滑过渡 */
+  overflow: hidden; /* 防止内容溢出 */
+  padding: 0; /* 确保没有默认内边距 */
+  margin: 0; /* 确保没有默认外边距 */
+}
+
+/* 收起状态的侧边栏样式 */
+.left-col.collapsed {
+  flex: 0 0 56px; /* 收起时的固定宽度 */
+  max-width: 56px;
+  min-width: 56px;
+  background: #ffffff; /* 白色背景 */
+  justify-content: space-between; /* 改为space-between，让图标在顶部，头像在底部 */
+  padding: 0 !important; /* 强制移除所有内边距 */
+  margin: 0 !important; /* 强制移除所有外边距 */
+}
+
+/* 确保收起状态下col元素也没有内边距 */
+.col.left-col.collapsed {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 确保收起状态下所有子元素都没有外边距 */
+.left-col.collapsed * {
+  margin: 0 !important;
+}
+
+.left-col.collapsed > * {
+  margin: 0 !important;
+}
+
+/* 移除旧的收起状态样式 */
+.left-col-collapsed {
+  display: none;
+}
+
+.collapsed-avatar {
+  display: none;
+}
 .chat-col {
-  /* 强制等宽：每列占据三分之一宽度 */
-  flex: 0 0 33.3333%;
-  max-width: 33.3333%;
+  flex: 1 1 auto;
   min-width: 0;
   box-sizing: border-box;
-  border-right: 1px solid #222;
+  transition: all 0.3s ease; /* 添加平滑过渡 */
 }
-.chat-col {
-  border-right: none;
+
+/* 左侧顶部切换按钮 */
+.left-header {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px; /* 添加左右内边距 */
+  align-items: center;
+  background: #f8f9fa; /* 添加灰色背景 */
 }
-@media (max-width: 1100px) {
-  .agent-layout.three-cols {
+
+.left-header .section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333333;
+}
+.tab-btn {
+  background: transparent;
+  color: #666666;
+  border: 1px solid transparent;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tab-btn.active {
+  background: #f0f0f0;
+  color: #333333;
+  border-color: #d0d0d0;
+}
+.left-content {
+  padding: 8px 12px; /* 添加左右内边距与header保持一致 */
+  overflow: auto;
+  flex: 1 1 auto;
+  background: #f8f9fa; /* 添加灰色背景 */
+}
+.panel {
+  height: 100%;
+}
+
+@media (max-width: 900px) {
+  .agent-layout.two-cols {
     flex-direction: column;
     height: auto;
     min-height: 100vh;
   }
-  .col {
-    min-width: 0;
+  .left-col {
     width: 100%;
-    padding: 8px 4px;
-    border-right: none;
-    border-bottom: 1px solid #222;
-  }
-  .prompt-col,
-  .tools-col,
-  .chat-col {
     max-width: none;
     min-width: 0;
     border-right: none;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid #e0e0e0;
   }
   .chat-col {
-    border-bottom: none;
+    width: 100%;
+    min-width: 0;
   }
+}
+
+/* 左侧栏滑动过渡效果 */
+.slide-left-enter-active,
+.slide-left-leave-active {
+  transition: all 0.4s ease;
+  overflow: hidden;
+}
+.slide-left-enter-from {
+  width: 0;
+  min-width: 0;
+  flex: 0 0 0;
+  opacity: 0;
+  transform: translateX(-100%);
+}
+.slide-left-leave-to {
+  width: 0;
+  min-width: 0;
+  flex: 0 0 0;
+  opacity: 0;
+  transform: translateX(-100%);
 }
 
 /* 过渡（用于 AuthPanel 出入场） */
@@ -406,6 +574,187 @@ export default {
   opacity: 0;
   transform: translateY(-6px);
 }
-</style>
 
-cdexwss
+/* 左侧Banner样式 */
+.left-banner {
+  position: relative;
+  background: #f8f9fa; /* 改为浅灰色背景与侧边栏保持一致 */
+  color: #333333;
+  padding: 12px;
+  flex-shrink: 0;
+}
+
+/* 收起状态下隐藏顶部banner */
+.left-col.collapsed .left-banner {
+  display: none;
+}
+
+.left-banner .home-btn {
+  background: rgba(0, 0, 0, 0.08);
+  color: #333333;
+  border-color: rgba(0, 0, 0, 0.2);
+  padding: 4px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+/* 右侧Banner样式 */
+.right-banner {
+  position: relative;
+  background: #ffffff;
+  color: #333333;
+  padding: 0; /* 移除所有内边距 */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 42px; /* 调整为原来的3/4，从56px变为42px */
+}
+
+/* 只有在有消息时才显示分割线 */
+.right-banner.has-messages {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.right-banner .banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* zoom按钮和标题之间的间距 */
+  padding-left: 9px; /* 左边距 */
+}
+
+.right-banner .banner-left h2 {
+  margin: 0;
+  font-size: 20px; /* 变大 */
+  color: #333333;
+  font-weight: 700; /* 加粗 */
+}
+
+.right-banner .banner-content {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  padding: 0 12px; /* 添加左右内边距 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.right-banner .banner-content h2 {
+  margin: 0;
+  font-size: 16px;
+  color: #333333;
+  font-weight: 600;
+}
+
+.right-banner .new-chat-btn {
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 6px; /* 添加圆角以配合背景 */
+  margin-right: 12px; /* 添加右边距 */
+}
+
+.right-banner .new-chat-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.right-banner .new-chat-btn img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* zoom 按钮样式 */
+.right-banner .zoom-btn {
+  padding: 4px;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.95);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.right-banner .zoom-btn:hover {
+  background: rgba(240,240,240,0.98);
+}
+
+.right-banner .zoom-btn img {
+  width: 10px;
+  height: 10px;
+  display: block;
+  filter: brightness(0) opacity(0.6); /* 使SVG图标变为深灰色 */
+}
+
+/* 左侧底部Banner样式 */
+.left-bottom-banner {
+  position: relative;
+  background: #f8f9fa;
+  padding: 12px;
+  flex-shrink: 0;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* 收起状态下的底部Banner样式 */
+.left-col.collapsed .left-bottom-banner {
+  background: #ffffff;
+  border-top: none;
+}
+
+.left-bottom-banner .bottom-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* 靠左显示 */
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.left-bottom-banner .bottom-avatar:hover {
+  opacity: 0.8;
+}
+
+.left-bottom-banner .bottom-avatar img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+/* 收起状态下的编辑提示词按钮 */
+.collapsed-prompt-btn {
+  cursor: pointer;
+  transition: opacity 0.2s;
+  display: none; /* 默认隐藏 */
+  align-items: center;
+  justify-content: center;
+  padding: 16px 8px 8px 8px; /* 顶部更多的内边距，底部较少 */
+  flex-shrink: 0; /* 不收缩 */
+  margin: 0 !important; /* 强制移除所有外边距 */
+}
+
+/* 只在收起状态下显示 */
+.left-col.collapsed .collapsed-prompt-btn {
+  display: flex;
+  margin: 0 !important; /* 强制移除外边距 */
+}
+
+.collapsed-prompt-btn:hover {
+  opacity: 0.8;
+}
+
+.collapsed-prompt-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.btn {
+  border: 1px solid #d0d0d0;
+  background: #f8f8f8;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+</style>
