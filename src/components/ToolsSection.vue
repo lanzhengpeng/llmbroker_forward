@@ -3,27 +3,41 @@
     <!-- Header: vertical nav buttons -->
     <div class="panel-headers">
       <button class="nav-btn" @click.stop="setActive('prompt')">
-        <img src="/prompt.svg" alt="prompt" style="width: 16px; height: 16px; margin-right: 6px;">
+        <img
+          src="/prompt.svg"
+          alt="prompt"
+          style="width: 16px; height: 16px; margin-right: 6px"
+        />
         编辑提示词
       </button>
-      <button class="nav-btn" :class="{ active: activePanel === 'add' }" @click.stop="setActive('add')">添加工具</button>
-      <button class="nav-btn" :class="{ active: activePanel === 'delete' }" @click.stop="setActive('delete')">删除工具</button>
+      <button class="nav-btn" @click.stop="setActive('view')">
+        <img
+          src="/src/assets/agent/库.svg"
+          alt="库"
+          style="width: 16px; height: 16px; margin-right: 6px"
+        />
+        查看工具列表
+      </button>
+      <button
+        class="nav-btn"
+        :class="{ active: activePanel === 'add' }"
+        @click.stop="setActive('add')"
+      >
+        添加工具
+      </button>
       <button class="nav-btn" @click.stop="fetchTools">获取工具列表</button>
       <button class="nav-btn" @click.stop="loadFromDb">从数据库加载</button>
       <button class="nav-btn" @click.stop="clearTools">清空所有</button>
-      <button class="nav-btn" @click.stop="setActive('view')">查看工具列表</button>
     </div>
 
     <!-- Visible control panels: three columns (add / delete / fetch) -->
-    <div class="control-panels" style="display: none;">
+    <div class="control-panels" style="display: none">
       <!-- 原来的内联面板已被模态框替代 -->
     </div>
 
-  <div class="section-body" style="display: none;">
-    <!-- 工具列表已移至模态框中显示 -->
-  </div>
-
-      
+    <div class="section-body" style="display: none">
+      <!-- 工具列表已移至模态框中显示 -->
+    </div>
 
     <div class="divider"></div>
 
@@ -36,11 +50,20 @@
           <div class="form-grid">
             <div class="form-row">
               <label>工具 URL</label>
-              <input type="text" v-model.trim="addUrl" placeholder="例如：http://127.0.0.1:8500" />
+              <input
+                type="text"
+                v-model.trim="addUrl"
+                placeholder="例如：http://127.0.0.1:8500"
+              />
             </div>
             <div class="form-row">
               <label>OpenAPI JSON</label>
-              <textarea rows="8" v-model.trim="addOpenapi" placeholder="在此粘贴完整的 OpenAPI JSON 内容" spellcheck="false"></textarea>
+              <textarea
+                rows="8"
+                v-model.trim="addOpenapi"
+                placeholder="在此粘贴完整的 OpenAPI JSON 内容"
+                spellcheck="false"
+              ></textarea>
             </div>
           </div>
           <div class="modal-actions">
@@ -50,53 +73,86 @@
         </div>
       </div>
 
-      <!-- 删除工具模态框 -->
-      <div v-if="showDeleteModal" class="modal-mask" @click.self="closeDeleteModal">
-        <div class="modal">
-          <h3>删除工具</h3>
-          <div class="form-grid">
-            <div class="form-row">
-              <label>工具名</label>
-              <input type="text" v-model.trim="deleteName" placeholder="要删除的工具名" />
-            </div>
-          </div>
-          <small class="hint" style="color:#666666;margin-top:8px;display:block;">建议先点击获取工具列表确认名称。</small>
-          <div class="modal-actions">
-            <button class="btn" @click="closeDeleteModal">取消</button>
-            <button class="btn primary" @click="confirmDelete">删除</button>
-          </div>
-        </div>
-      </div>
-
       <!-- 查看工具列表模态框 -->
-      <div v-if="showFetchModal" class="modal-mask" @click.self="closeFetchModal">
-        <div class="modal" style="width: min(800px, 95vw); max-height: 85vh;">
+      <div
+        v-if="showFetchModal"
+        class="modal-mask"
+        @click.self="closeFetchModal"
+      >
+        <div class="modal" style="width: min(800px, 95vw); max-height: 85vh">
           <h3>工具列表</h3>
           <div class="form-grid">
             <!-- 工具列表显示区域 -->
             <div class="modal-tool-list" v-if="tools && tools.length">
-              <h4 style="margin: 16px 0 8px 0; color: #333333;">当前工具（{{ tools.length }} 个）</h4>
-              <div class="tool-list-container" style="max-height: 400px; overflow-y: auto;">
-                <div v-for="(t, idx) in tools" :key="t.name || idx" class="modal-tool-item simple-mode">
+              <h4 style="margin: 16px 0 8px 0; color: #333333">
+                当前工具（{{ tools.length }} 个）
+              </h4>
+              <div
+                class="tool-list-container"
+                style="max-height: 400px; overflow-y: auto"
+              >
+                <div
+                  v-for="(t, idx) in tools"
+                  :key="t.name || idx"
+                  class="modal-tool-item simple-mode"
+                >
                   <!-- 简化显示：只显示工具名称 -->
                   <div class="tool-simple-display">
-                    <span class="tool-name" :class="{ passed: !!t.testResult }">{{ t.name || '-' }}</span>
+                    <span
+                      class="tool-name"
+                      :class="{ passed: !!t.testResult }"
+                      >{{ t.name || "-" }}</span
+                    >
                     <span class="tool-status" v-if="t.testResult">✓</span>
                   </div>
-                  
+
                   <!-- 详细显示：悬停时显示 -->
                   <div class="tool-detailed-display">
                     <div class="tool-header">
                       <button class="expander" @click.stop="toggleExpand(idx)">
-                        <span class="chevron" :class="{ open: isExpanded(idx) }">▶</span>
-                        <span class="name" :class="{ passed: !!t.testResult }">{{ t.name || '-' }}</span>
+                        <span class="chevron" :class="{ open: isExpanded(idx) }"
+                          >▶</span
+                        >
+                        <span
+                          class="name"
+                          :class="{ passed: !!t.testResult }"
+                          >{{ t.name || "-" }}</span
+                        >
                       </button>
                       <div class="ops">
-                        <button class="btn" :class="{ success: !!t.testResult }" :disabled="t.testing" @click.stop="openTestModal(idx, t)">
-                          {{ t.testResult ? '测试通过' : t.testing ? '测试中…' : '测试' }}
+                        <button
+                          class="btn"
+                          :class="{ success: !!t.testResult }"
+                          :disabled="t.testing"
+                          @click.stop="openTestModal(idx, t)"
+                        >
+                          {{
+                            t.testResult
+                              ? "测试通过"
+                              : t.testing
+                              ? "测试中…"
+                              : "测试"
+                          }}
                         </button>
-                        <button class="btn" :disabled="!t.testResult || t.saving" @click.stop="saveTool(idx, t.name)">
-                          {{ t.saved ? '已保存' : t.saving ? '保存中…' : '保存到 DB' }}
+                        <button
+                          class="btn"
+                          :disabled="!t.testResult || t.saving"
+                          @click.stop="saveTool(idx, t.name)"
+                        >
+                          {{
+                            t.saved
+                              ? "已保存"
+                              : t.saving
+                              ? "保存中…"
+                              : "保存到 DB"
+                          }}
+                        </button>
+                        <button
+                          class="btn danger"
+                          @click.stop="deleteToolDirect(t.name)"
+                          title="删除工具"
+                        >
+                          删除
                         </button>
                       </div>
                     </div>
@@ -104,28 +160,49 @@
                       <div v-if="isExpanded(idx)" class="details">
                         <div class="line">
                           <span class="k">描述：</span>
-                          <span class="v">{{ t.description || '-' }}</span>
+                          <span class="v">{{ t.description || "-" }}</span>
                         </div>
-                        <div class="line block" v-if="t.parameters && Object.keys(t.parameters).length">
+                        <div
+                          class="line block"
+                          v-if="
+                            t.parameters && Object.keys(t.parameters).length
+                          "
+                        >
                           <span class="k">参数：</span>
                           <div class="params">
-                            <div v-for="(p, key) in t.parameters" :key="key" class="param-row">
+                            <div
+                              v-for="(p, key) in t.parameters"
+                              :key="key"
+                              class="param-row"
+                            >
                               <span class="param-key">{{ key }}</span>
-                              <span class="param-type">{{ p?.type || '-' }}</span>
-                              <span class="param-desc">{{ p?.description || '-' }}</span>
-                              <span class="param-default">默认：{{ p?.default ?? '-' }}</span>
+                              <span class="param-type">{{
+                                p?.type || "-"
+                              }}</span>
+                              <span class="param-desc">{{
+                                p?.description || "-"
+                              }}</span>
+                              <span class="param-default"
+                                >默认：{{ p?.default ?? "-" }}</span
+                              >
                             </div>
                           </div>
                         </div>
                         <div class="test-state" v-if="t.testing">正在测试…</div>
-                        <div class="test-result" v-else-if="t.testResult"><pre>{{ prettyJson(t.testResult) }}</pre></div>
+                        <div class="test-result" v-else-if="t.testResult">
+                          <pre>{{ prettyJson(t.testResult) }}</pre>
+                        </div>
                       </div>
                     </transition>
                   </div>
                 </div>
               </div>
             </div>
-            <div v-else class="placeholder" style="margin: 16px 0; text-align: center;">
+            <div
+              v-else
+              class="placeholder"
+              style="margin: 16px 0; text-align: center"
+            >
               暂无工具，请使用上方按钮获取或添加工具。
             </div>
           </div>
@@ -187,8 +264,8 @@
           <div class="modal-body">
             <div class="form-group">
               <label>系统提示词：</label>
-              <textarea 
-                v-model="promptText" 
+              <textarea
+                v-model="promptText"
                 class="prompt-textarea"
                 placeholder="请输入系统提示词，用于指导AI的行为和回答风格..."
                 rows="10"
@@ -222,11 +299,9 @@ export default {
       addOpenapi: "",
       expandedIndex: null,
       showDelete: false,
-      deleteName: "",
       activePanel: null,
       // 模态框状态
       showAddModal: false,
-      showDeleteModal: false,
       showFetchModal: false,
       showPromptModal: false,
       // 测试弹窗
@@ -256,13 +331,11 @@ export default {
     },
     setActive(name) {
       // 改为打开对应的模态框
-      if (name === 'add') {
+      if (name === "add") {
         this.showAddModal = true;
-      } else if (name === 'delete') {
-        this.showDeleteModal = true;
-      } else if (name === 'view') {
+      } else if (name === "view") {
         this.showFetchModal = true;
-      } else if (name === 'prompt') {
+      } else if (name === "prompt") {
         this.showPromptModal = true;
       }
     },
@@ -355,20 +428,15 @@ export default {
     loadFromDb() {
       this.$emit("load");
     },
-    confirmDelete() {
-      if (!this.deleteName) {
-        alert("请输入要删除的工具名");
+    deleteToolDirect(toolName) {
+      if (!toolName) {
+        alert("工具名不能为空");
         return;
       }
-      // emit delete event with the tool name
-      this.$emit("delete", { toolName: this.deleteName });
-      // reset
-      this.deleteName = "";
-      this.showDeleteModal = false;
-    },
-    closeDeleteModal() {
-      this.deleteName = "";
-      this.showDeleteModal = false;
+      if (confirm(`确定要删除工具 "${toolName}" 吗？`)) {
+        // emit delete event with the tool name
+        this.$emit("delete", { toolName });
+      }
     },
     closeFetchModal() {
       this.showFetchModal = false;
@@ -378,8 +446,8 @@ export default {
     },
     savePrompt() {
       // 保存提示词逻辑
-      localStorage.setItem('agent_prompt', this.promptText);
-      alert('提示词已保存');
+      localStorage.setItem("agent_prompt", this.promptText);
+      alert("提示词已保存");
       this.showPromptModal = false;
     },
     cancelDelete() {
@@ -389,7 +457,7 @@ export default {
   },
   mounted() {
     // 加载保存的提示词
-    const savedPrompt = localStorage.getItem('agent_prompt');
+    const savedPrompt = localStorage.getItem("agent_prompt");
     if (savedPrompt) {
       this.promptText = savedPrompt;
     }
@@ -490,16 +558,16 @@ export default {
   flex: 1 1 220px;
   min-width: 0;
 }
-  .control-panels .panel .row {
+.control-panels .panel .row {
   display: flex;
   flex-direction: column; /* 竖着排列 */
-    align-items: center;
+  align-items: center;
 }
-  .control-panels .panel.add-panel .row {
-    /* 更高优先级覆盖：确保添加工具面板内的标签与输入靠左 */
-    align-items: flex-start;
-    text-align: left;
-  }
+.control-panels .panel.add-panel .row {
+  /* 更高优先级覆盖：确保添加工具面板内的标签与输入靠左 */
+  align-items: flex-start;
+  text-align: left;
+}
 .control-panels .panel .row .nav-btn {
   -webkit-appearance: none;
   appearance: none;
@@ -536,7 +604,9 @@ export default {
   gap: 8px;
   align-items: flex-start; /* 左对齐按钮 */
 }
-.fetch-actions .btn { min-width: 120px; }
+.fetch-actions .btn {
+  min-width: 120px;
+}
 
 /* 让 fetch-panel 的按钮紧贴 control-panels 的左侧和上侧边缘 */
 .control-panels .panel.fetch-panel {
@@ -552,7 +622,11 @@ export default {
 }
 
 .add-panel label,
-.delete-panel label { display: block; color: #9ca3af; font-weight: 600; }
+.delete-panel label {
+  display: block;
+  color: #9ca3af;
+  font-weight: 600;
+}
 
 /* 使添加工具面板内容靠左显示，并将输入框背景调为黑色 */
 .add-panel .row {
@@ -588,7 +662,6 @@ export default {
   color: #666;
 }
 
-
 .add-tool-toggle {
   font-weight: 600;
 }
@@ -616,6 +689,15 @@ export default {
   background: #ffffff;
   color: #000000;
   border-color: #ffffff;
+}
+.btn.danger {
+  background: #dc3545;
+  color: #ffffff;
+  border-color: #dc3545;
+}
+.btn.danger:hover {
+  background: #c82333;
+  border-color: #bd2130;
 }
 .btn:hover {
   background: #343434;
@@ -815,7 +897,9 @@ export default {
 .param-row {
   display: grid;
   /* 在模态框中使用更紧凑的布局，避免超出容器 */
-  grid-template-columns: minmax(80px, 1fr) minmax(60px, 0.8fr) minmax(100px, 2fr) minmax(80px, 1fr);
+  grid-template-columns:
+    minmax(80px, 1fr) minmax(60px, 0.8fr) minmax(100px, 2fr)
+    minmax(80px, 1fr);
   gap: 8px; /* 减小间距 */
   align-items: start; /* 顶部对齐，便于多行文本 */
   max-width: 100%;
@@ -1000,7 +1084,9 @@ export default {
 }
 
 /* 顶部li标签样式 */
-.tool-top-list { display: none; }
+.tool-top-list {
+  display: none;
+}
 .add-form,
 .fetch-area {
   margin-top: 10px;

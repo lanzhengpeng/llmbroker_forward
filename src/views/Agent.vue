@@ -14,24 +14,44 @@
     </transition>
 
     <!-- 主体布局：两栏，左侧为工具/提示切换面板，右侧为聊天 -->
-    <div class="agent-layout two-cols" :class="{ 'left-collapsed': !leftColVisible }">
-      <section class="col left-col" :class="{ 'collapsed': !leftColVisible }">
-        <!-- 左侧Banner部分 -->
-        <div class="left-banner" v-show="leftColVisible">
+    <div
+      class="agent-layout two-cols"
+      :class="{ 'left-collapsed': !leftColVisible }"
+    >
+      <section class="col left-col" :class="{ collapsed: !leftColVisible }">
+        <!-- 左侧Banner部分 - 始终显示 -->
+        <div class="left-banner">
           <button
-            class="home-btn btn"
+            class="home-btn"
             @click.stop="goHome"
             aria-label="返回主页"
+            title="返回主页"
           >
-            返回主页
+            <img src="/src/assets/agent/logo.svg" alt="返回主页" />
           </button>
         </div>
-        
-        <!-- 收起状态下显示的编辑提示词图标 - 在内容区域上方 -->
-        <div class="collapsed-prompt-btn" @click="openPromptModal" title="编辑提示词">
-          <img src="/prompt.svg" alt="编辑提示词" />
+
+        <!-- 收起状态下显示的图标容器 -->
+        <div class="collapsed-icons-container">
+          <!-- 收起状态下显示的编辑提示词图标 -->
+          <div
+            class="collapsed-prompt-btn"
+            @click="openPromptModal"
+            title="编辑提示词"
+          >
+            <img src="/prompt.svg" alt="编辑提示词" />
+          </div>
+
+          <!-- 收起状态下显示的查看工具列表图标 -->
+          <div
+            class="collapsed-tools-btn"
+            @click="openToolsModal"
+            title="查看工具列表"
+          >
+            <img src="/src/assets/agent/库.svg" alt="查看工具列表" />
+          </div>
         </div>
-        
+
         <div class="left-content" v-show="leftColVisible">
           <div class="panel">
             <ToolsSection
@@ -50,7 +70,11 @@
 
         <!-- 左侧底部Banner - 始终显示 -->
         <div class="left-bottom-banner">
-          <div class="bottom-avatar" @click="onToggleAuth" :title="user ? `当前账号：${user.username}` : '点击管理账户'">
+          <div
+            class="bottom-avatar"
+            @click="onToggleAuth"
+            :title="user ? `当前账号：${user.username}` : '点击管理账户'"
+          >
             <img src="/头像.png" alt="用户头像" />
           </div>
         </div>
@@ -58,7 +82,10 @@
 
       <section class="col chat-col">
         <!-- 右侧Banner部分 -->
-        <div class="right-banner" :class="{ 'has-messages': messages.length > 0 }">
+        <div
+          class="right-banner"
+          :class="{ 'has-messages': messages.length > 0 }"
+        >
           <div class="banner-left">
             <button class="zoom-btn" @click="toggleLeftPanel">
               <img src="/zoom.svg" alt="缩放" />
@@ -72,12 +99,13 @@
             <img src="/new_chat.svg" alt="新建对话" />
           </div>
         </div>
-        
-        <ChatSection 
+
+        <ChatSection
           ref="chatSection"
-          :messages="messages" 
-          @send="onSendMessage" 
-          @toggle-left-panel="toggleLeftPanel" 
+          :messages="messages"
+          :user="user"
+          @send="onSendMessage"
+          @toggle-left-panel="toggleLeftPanel"
         />
       </section>
     </div>
@@ -388,7 +416,14 @@ export default {
     openPromptModal() {
       // 通过ref调用ToolsSection的编辑提示词功能
       if (this.$refs.toolsSection && this.$refs.toolsSection.setActive) {
-        this.$refs.toolsSection.setActive('prompt');
+        this.$refs.toolsSection.setActive("prompt");
+      }
+    },
+    // 打开查看工具列表模态框
+    openToolsModal() {
+      // 通过ref调用ToolsSection的查看工具列表功能
+      if (this.$refs.toolsSection && this.$refs.toolsSection.setActive) {
+        this.$refs.toolsSection.setActive("view");
       }
     },
   },
@@ -452,9 +487,10 @@ export default {
   max-width: 56px;
   min-width: 56px;
   background: #ffffff; /* 白色背景 */
-  justify-content: space-between; /* 改为space-between，让图标在顶部，头像在底部 */
+  justify-content: flex-start; /* 改为flex-start，让所有元素靠上显示 */
   padding: 0 !important; /* 强制移除所有内边距 */
   margin: 0 !important; /* 强制移除所有外边距 */
+  position: relative; /* 添加相对定位，为底部banner的绝对定位提供参考 */
 }
 
 /* 确保收起状态下col元素也没有内边距 */
@@ -485,6 +521,9 @@ export default {
   min-width: 0;
   box-sizing: border-box;
   transition: all 0.3s ease; /* 添加平滑过渡 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* 左侧顶部切换按钮 */
@@ -584,18 +623,36 @@ export default {
   flex-shrink: 0;
 }
 
-/* 收起状态下隐藏顶部banner */
+/* 收起状态下的顶部banner样式 */
 .left-col.collapsed .left-banner {
-  display: none;
+  background: #ffffff;
+  /* 保持相同的padding */
 }
 
 .left-banner .home-btn {
-  background: rgba(0, 0, 0, 0.08);
+  background: transparent;
+  border: none;
   color: #333333;
-  border-color: rgba(0, 0, 0, 0.2);
-  padding: 4px 8px;
+  padding: 8px;
   font-size: 13px;
   border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; /* 固定宽度，与头像一致 */
+  height: 32px; /* 固定高度，与头像一致 */
+}
+
+.left-banner .home-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.left-banner .home-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
 /* 右侧Banner样式 */
@@ -671,13 +728,13 @@ export default {
   margin: 0;
   border: none;
   border-radius: 4px;
-  background: rgba(255,255,255,0.95);
+  background: rgba(255, 255, 255, 0.95);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .right-banner .zoom-btn:hover {
-  background: rgba(240,240,240,0.98);
+  background: rgba(240, 240, 240, 0.98);
 }
 
 .right-banner .zoom-btn img {
@@ -700,6 +757,10 @@ export default {
 .left-col.collapsed .left-bottom-banner {
   background: #ffffff;
   border-top: none;
+  position: absolute; /* 绝对定位 */
+  bottom: 0; /* 固定在底部 */
+  left: 0;
+  right: 0;
 }
 
 .left-bottom-banner .bottom-avatar {
@@ -722,29 +783,59 @@ export default {
   border: 2px solid rgba(0, 0, 0, 0.2);
 }
 
+/* 收起状态下的图标容器 */
+.collapsed-icons-container {
+  display: none; /* 默认隐藏 */
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px; /* 顶部间距 */
+  gap: 0; /* 图标之间无间距，紧挨着 */
+}
+
+/* 只在收起状态下显示图标容器 */
+.left-col.collapsed .collapsed-icons-container {
+  display: flex;
+}
+
 /* 收起状态下的编辑提示词按钮 */
 .collapsed-prompt-btn {
   cursor: pointer;
   transition: opacity 0.2s;
-  display: none; /* 默认隐藏 */
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 8px 8px 8px; /* 顶部更多的内边距，底部较少 */
+  padding: 8px; /* 统一的内边距 */
   flex-shrink: 0; /* 不收缩 */
   margin: 0 !important; /* 强制移除所有外边距 */
 }
 
-/* 只在收起状态下显示 */
-.left-col.collapsed .collapsed-prompt-btn {
+/* 收起状态下的查看工具列表按钮 */
+.collapsed-tools-btn {
+  cursor: pointer;
+  transition: opacity 0.2s;
   display: flex;
-  margin: 0 !important; /* 强制移除外边距 */
+  align-items: center;
+  justify-content: center;
+  padding: 8px; /* 统一的内边距 */
+  flex-shrink: 0; /* 不收缩 */
+  margin: 0 !important; /* 强制移除所有外边距 */
 }
 
 .collapsed-prompt-btn:hover {
   opacity: 0.8;
 }
 
+.collapsed-tools-btn:hover {
+  opacity: 0.8;
+}
+
 .collapsed-prompt-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.collapsed-tools-btn img {
   width: 20px;
   height: 20px;
   object-fit: contain;
@@ -756,5 +847,34 @@ export default {
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
+}
+
+/* 侧边栏收起时，调整没有消息状态下的输入框宽度 */
+.agent-layout.left-collapsed .chat-section.no-messages .custom-input-grid {
+  width: calc(
+    50vw - 28px
+  ); /* 整个界面宽度的一半减去收起侧边栏宽度的一半(56px/2) */
+}
+
+/* 侧边栏收起时，调整有消息状态下的输入框宽度 */
+.agent-layout.left-collapsed .chat-section.has-messages .custom-input-grid {
+  width: calc(50vw - 28px); /* 与无消息时保持相同宽度 */
+}
+
+/* 侧边栏收起时，调整消息区域宽度 */
+.agent-layout.left-collapsed .chat-section.has-messages .messages {
+  width: 100%; /* 保持全宽，滚动条在最右边 */
+}
+
+/* 侧边栏收起时，调整消息内容宽度 */
+.agent-layout.left-collapsed .chat-section.has-messages .messages .msg {
+  max-width: calc(50vw - 28px); /* 与输入框宽度保持一致 */
+}
+
+/* 侧边栏收起时，调整回到底部按钮位置 */
+.agent-layout.left-collapsed .jump-bottom {
+  left: calc(
+    56px + (100vw - 56px) / 2
+  ); /* 收起时侧边栏宽度56px + 右侧区域的中心 */
 }
 </style>
